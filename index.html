@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic MSP Console v2 | HUB Ocean + ODP API</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --serif: 'Newsreader', Georgia, serif;
+  --bg: #1A0A2E; --surface: #221440; --surface2: #2A1B4E;
+  --border: #3D2D6B; --borderLight: #4E3D7C;
+  --teal: #4FD1C5; --tealDim: rgba(79,209,197,0.12);
+  --amber: #EBB963; --amberDim: rgba(235,185,99,0.1);
+  --violet: #A78BFA; --violetDim: rgba(167,139,250,0.1);
+  --rose: #E87272; --roseDim: rgba(232,114,114,0.08);
+  --green: #68D391; --greenDim: rgba(104,211,145,0.1);
+  --blue: #63B3ED; --blueDim: rgba(99,179,237,0.1);
+  --text: #FFFFFF; --textMid: rgba(255,255,255,0.7); --textFaint: rgba(255,255,255,0.4);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--serif); overflow: hidden; }
+@keyframes blink { 0%,50%{opacity:1} 51%,100%{opacity:0} }
+input[type="range"] { -webkit-appearance:none; appearance:none; height:4px; border-radius:2px; outline:none; cursor:pointer; width:100%; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#FFFFFF; cursor:pointer; border:2px solid var(--bg); }
+button { font-family: var(--mono); cursor: pointer; color: var(--text); }
+.hidden { display: none !important; }
+
+/* Persona selector */
+#persona-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; padding:32px; }
+.persona-header { text-align:center; margin-bottom:48px; }
+.persona-header .tag { font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:0.25em; color:var(--teal); margin-bottom:8px; }
+.persona-header h1 { font-size:28px; font-weight:700; line-height:1.3; }
+.persona-header p { font-family:var(--mono); font-size:12px; color:var(--textMid); margin-top:8px; max-width:500px; }
+.persona-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; max-width:680px; width:100%; }
+.persona-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:24px 20px; text-align:left; transition:all 0.25s; color:var(--text); }
+.persona-card:hover { background:var(--surface2); transform:translateY(-2px); }
+.persona-card .icon { font-size:32px; margin-bottom:10px; line-height:1; }
+.persona-card h3 { font-family:var(--serif); font-size:16px; font-weight:700; margin-bottom:2px; color:var(--text); }
+.persona-card .sub { font-family:var(--mono); font-size:9px; letter-spacing:0.05em; margin-bottom:8px; }
+.persona-card .desc { font-family:var(--mono); font-size:11px; color:var(--textMid); line-height:1.55; }
+.persona-footer { font-family:var(--mono); font-size:9px; color:var(--textFaint); margin-top:40px; text-align:center; line-height:1.6; }
+
+/* Main layout */
+#main-screen { display:flex; flex-direction:column; height:100vh; }
+#topbar { padding:12px 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+#topbar .left { display:flex; align-items:center; gap:16px; }
+.console-tag { font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:0.2em; color:var(--teal); }
+.console-title { font-family:var(--serif); font-size:16px; font-weight:700; margin-top:1px; }
+.site-switch { display:flex; border:1px solid var(--border); border-radius:4px; overflow:hidden; margin-left:12px; }
+.site-switch button { font-size:10px; padding:5px 14px; background:transparent; color:var(--textFaint); border:none; font-weight:400; }
+.site-switch button.active { background:var(--tealDim); color:var(--teal); font-weight:600; }
+.site-switch button:first-child { border-right:1px solid var(--border); }
+.persona-badge { padding:4px 10px; border-radius:4px; font-family:var(--mono); font-size:9px; }
+#topbar .right { display:flex; align-items:center; gap:16px; }
+.credit { font-family:var(--mono); font-size:9px; color:var(--textFaint); text-align:right; line-height:1.5; }
+.credit .name { color:var(--teal); }
+#switch-role-btn { font-size:9px; padding:4px 10px; background:transparent; color:var(--textFaint); border:1px solid var(--border); border-radius:3px; }
+
+#workspace { display:flex; flex:1; overflow:hidden; }
+
+/* Sidebar */
+#sidebar { width:210px; border-right:1px solid var(--border); padding:14px 0; flex-shrink:0; display:flex; flex-direction:column; }
+#stage-nav { flex:1; }
+.stage-btn { display:flex; align-items:center; gap:9px; width:100%; padding:10px 16px; background:transparent; border:none; border-left:2px solid transparent; text-align:left; transition:all 0.2s; }
+.stage-btn.active { background:rgba(216,222,233,0.03); }
+.stage-btn.locked { opacity:0.25; cursor:not-allowed; }
+.stage-btn .icon { font-family:var(--mono); font-size:12px; line-height:1; }
+.stage-btn .stag { font-family:var(--mono); font-size:7px; letter-spacing:0.12em; text-transform:uppercase; opacity:0.7; }
+.stage-btn .slabel { font-family:var(--serif); font-size:12px; }
+#sidebar-bottom { padding:0 16px; }
+.pipeline-box { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:8px; }
+.pipeline-label { font-family:var(--mono); font-size:8px; letter-spacing:0.1em; text-transform:uppercase; color:var(--textFaint); margin-bottom:5px; }
+.pipeline-bar { height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+.pipeline-fill { height:100%; background:linear-gradient(90deg, var(--teal), var(--green)); transition:width 0.5s; border-radius:2px; }
+.pipeline-count { font-family:var(--mono); font-size:10px; color:var(--textMid); margin-top:4px; }
+#export-btn { width:100%; margin-top:6px; font-size:10px; padding:8px 10px; background:var(--tealDim); color:var(--teal); border:1px solid rgba(79,209,197,0.2); border-radius:4px; font-weight:600; }
+.site-card { padding:8px 10px; border-radius:6px; margin-top:8px; }
+.site-card .sc-tag { font-family:var(--mono); font-size:8px; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:3px; }
+.site-card .sc-name { font-family:var(--serif); font-size:11px; }
+.site-card .sc-detail { font-family:var(--mono); font-size:9px; color:var(--textFaint); margin-top:1px; }
+
+/* Main content */
+#content { flex:1; padding:18px 26px; overflow-y:auto; }
+.stage-header .sh-tag { font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; margin-bottom:2px; }
+.stage-header h2 { font-family:var(--serif); font-size:19px; font-weight:700; }
+.stage-header .sh-desc { font-family:var(--mono); font-size:11px; color:var(--textMid); margin-top:3px; margin-bottom:16px; }
+
+/* Stage content shared */
+.terminal-box { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:16px 20px; font-family:var(--mono); font-size:12px; line-height:1.7; white-space:pre-wrap; min-height:160px; }
+.term-line { font-family:var(--mono); font-size:12px; line-height:1.7; color:var(--textMid); margin-bottom:2px; }
+.term-prefix { font-weight:600; }
+.action-btn { font-size:12px; padding:10px 24px; border:none; border-radius:4px; font-weight:600; letter-spacing:0.05em; color:var(--bg); }
+.proceed-btn { margin-top:16px; font-size:11px; padding:7px 18px; background:transparent; border-radius:4px; font-weight:500; }
+.tag-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; }
+.tag-pill { font-family:var(--mono); font-size:9px; letter-spacing:0.08em; padding:3px 9px; border-radius:3px; }
+.layer-row { border-radius:4px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+.layer-name { font-family:var(--mono); font-size:11px; font-weight:500; }
+.layer-detail { font-family:var(--mono); font-size:9px; color:var(--textFaint); margin-top:1px; }
+.layer-badge { font-family:var(--mono); font-size:9px; font-weight:600; padding:2px 7px; border-radius:3px; }
+.gap-flag { margin-top:4px; padding:8px 12px; background:var(--roseDim); border:1px solid rgba(232,114,114,0.2); border-radius:4px; }
+.hex-container { margin-top:10px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:12px; }
+.slider-group { margin-top:14px; }
+.slider-row { margin-bottom:14px; }
+.slider-header { display:flex; justify-content:space-between; margin-bottom:5px; }
+.slider-label { font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--textFaint); }
+.slider-val { font-family:var(--mono); font-size:12px; font-weight:600; }
+.metrics-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-top:10px; }
+.metric-card { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:8px 10px; }
+.metric-val { font-family:var(--mono); font-size:15px; font-weight:600; }
+.metric-label { font-family:var(--mono); font-size:9px; color:var(--text); margin-top:2px; }
+.metric-note { font-family:var(--mono); font-size:8px; color:var(--textFaint); margin-top:1px; }
+.report-section { background:var(--surface2); border-radius:6px; padding:14px 18px; margin-bottom:10px; }
+.report-tag { font-family:var(--mono); font-size:9px; letter-spacing:0.12em; text-transform:uppercase; font-weight:600; margin-bottom:8px; }
+.report-text { font-family:var(--mono); font-size:11px; line-height:1.7; }
+.complete-banner { padding:10px 14px; border-radius:6px; text-align:center; margin-top:8px; }
+.complete-title { font-family:var(--mono); font-size:10px; letter-spacing:0.1em; font-weight:600; }
+.complete-sub { font-family:var(--mono); font-size:9px; color:var(--textFaint); margin-top:3px; }
+#map-container { border-radius:6px; overflow:hidden; margin-top:12px; border:1px solid var(--border); }
+
+/* Report overlay */
+#report-overlay { position:fixed; inset:0; z-index:1000; background:rgba(8,12,20,0.94); display:flex; align-items:center; justify-content:center; padding:20px; }
+#report-doc { background:#fff; color:#111; border-radius:8px; max-width:780px; width:100%; max-height:85vh; overflow-y:auto; font-family:Georgia,serif; }
+#report-doc .inner { padding:36px 44px; }
+#report-doc h1 { font-size:22px; font-weight:700; line-height:1.25; margin:0; }
+#report-doc h2 { font-size:15px; font-weight:700; margin:24px 0 10px; color:#1a1a1a; }
+#report-doc table { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:20px; }
+#report-doc td { padding:5px 10px 5px 0; border-bottom:1px solid #eee; }
+#report-doc td:first-child { font-weight:600; color:#333; width:160px; }
+#report-doc .r-metric-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+#report-doc .r-metric { border:1px solid #e0e0e0; border-radius:6px; padding:10px 14px; }
+#report-doc .r-metric-val { font-size:17px; font-weight:700; color:#2D7A74; }
+#report-doc .r-metric-label { font-size:11px; font-weight:600; color:#333; margin-top:2px; }
+#report-doc .r-metric-note { font-size:10px; color:#888; margin-top:1px; }
+#report-doc .r-gap { background:#FFF5F5; border:1px solid #FED7D7; border-radius:4px; padding:8px 12px; font-size:12px; color:#9B2C2C; }
+.report-actions { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:1001; }
+.report-actions button { font-family:var(--mono); font-size:11px; padding:9px 24px; border:none; border-radius:4px; font-weight:600; cursor:pointer; }
+
+@media print { #main-screen, #persona-screen { display:none!important; } }
+</style>
+</head>
+<body>
+
+<!-- ═══ PERSONA SCREEN ═══ -->
+<div id="persona-screen">
+  <div class="persona-header">
+    <div class="tag">AGENTIC MSP CONSOLE</div>
+    <h1>Who are you?</h1>
+    <p>Select your role. The workflow engine adapts its data sources, analysis, and outputs to serve your specific needs.</p>
+  </div>
+  <div class="persona-grid" id="persona-grid"></div>
+  <div class="persona-footer">ODP STAC API + Catalog API + H3 Hexagonal Indexing + Agentic AI<br>Data: <a href="https://app.hubocean.earth" target="_blank" style="color:var(--teal);text-decoration:underline">Ocean Data Platform</a> (queried 2026-03-05) | Species: <a href="https://obis.org" target="_blank" style="color:var(--teal);text-decoration:underline">OBIS</a><br>Julian Ford Hill • HUB Ocean Foundation • March 2026</div>
+</div>
+
+<!-- ═══ MAIN SCREEN ═══ -->
+<div id="main-screen" class="hidden">
+  <div id="topbar">
+    <div class="left">
+      <div>
+        <div class="console-tag">AGENTIC MSP CONSOLE</div>
+        <div class="console-title" id="workflow-title"></div>
+      </div>
+      <div class="site-switch">
+        <button id="site-vtr" onclick="switchSite('vtr')">VT Ridge</button>
+        <button id="site-fdn" onclick="switchSite('fdn')">F. de Noronha</button>
+      </div>
+      <div class="persona-badge" id="persona-badge"></div>
+    </div>
+    <div class="right">
+      <div class="credit"><span class="name">Julian Ford Hill</span> • HUB Ocean • March 2026</div>
+      <button id="switch-role-btn" onclick="resetAll()">SWITCH ROLE</button>
+    </div>
+  </div>
+  <div id="workspace">
+    <div id="sidebar">
+      <div id="stage-nav"></div>
+      <div id="sidebar-bottom">
+        <div class="pipeline-box">
+          <div class="pipeline-label">PIPELINE</div>
+          <div class="pipeline-bar"><div class="pipeline-fill" id="pipeline-fill" style="width:0%"></div></div>
+          <div class="pipeline-count" id="pipeline-count">0/4 complete</div>
+        </div>
+        <button id="export-btn" class="hidden" onclick="showReport()">VIEW OSA REPORT</button>
+        <button id="export-btn-full" class="hidden" onclick="downloadReport()" style="width:100%;margin-top:4px;font-size:9px;padding:6px 10px;background:transparent;color:var(--teal);border:1px solid rgba(79,209,197,0.2);border-radius:4px;font-weight:500;font-family:var(--mono)">EXPORT PDF</button>
+        <div class="site-card" id="site-card"></div>
+      </div>
+    </div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<!-- ═══ REPORT OVERLAY ═══ -->
+<div id="report-overlay" class="hidden">
+  <div id="report-doc"><div class="inner" id="report-inner"></div></div>
+  <div class="report-actions">
+    <button style="background:#4FD1C5;color:#1A0A2E" onclick="downloadReport()">EXPORT FULL REPORT</button>
+    <button style="background:transparent;color:#FFFFFF;border:1px solid #4E3D7C" onclick="hideReport()">CLOSE</button>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════
+   ODP CATALOG — REAL DATA (queried 2026-03-05)
+   API: https://api.hubocean.earth/api/public/catalog/v2/search (POST)
+   STAC: https://api.hubocean.earth/api/stac/search (POST, supports bbox)
+   ═══════════════════════════════════════════ */
+const ODP_API = {
+  catalog: "https://api.hubocean.earth/api/public/catalog/v2/search",
+  stac: "https://api.hubocean.earth/api/stac/search",
+  stacCollections: "https://api.hubocean.earth/api/stac/collections",
+  queryDate: "2026-03-05",
+};
+
+const ODP_DATASETS = {
+  bathymetry: [
+    {id:"8de642cc-03d9-4538-a6d4-8260e49df597", title:"List of Seamount Bases in the World Oceans (Yesson et al. 2020)", provider:"Pangaea", providerUrl:"https://pangaea.de", rows:37889, license:"CC-BY 4.0", geo:true},
+    {id:"69360a03-c7a9-492a-adbe-5107d734ef72", title:"List of Seamounts in the World Oceans (Yesson et al. 2020)", provider:"Pangaea", providerUrl:"https://pangaea.de", rows:37889, license:"CC-BY 4.0", geo:true},
+    {id:"027a6438-2d81-4a6e-91f3-e939e79f7cdd", title:"Seafloor Geomorphic Features Map (GSFM) — Seamounts", provider:"GRID Arendal", providerUrl:"https://grida.no", rows:9951, license:"CC-BY 4.0", geo:true},
+  ],
+  species: [
+    {id:"1d801817-742b-4867-82cf-5597673524eb", title:"PGS biota data — mammal and turtle observations (Darwin Core)", provider:"PGS", providerUrl:"https://www.pgs.com", rows:2241, license:"CC-BY-NC 4.0", geo:true},
+    {id:"53697b8b-a570-48a4-b873-85dd0000fdd6", title:"PGS biota data — mammal and turtle observations (aggregated)", provider:"PGS", providerUrl:"https://www.pgs.com", rows:2106, license:"CC-BY-NC 4.0", geo:true},
+    {id:"019be45f-154f-4b48-ab01-651b237ab1d9", title:"Global Whale Distribution, Ship-Strike Risk and Hotspots (Nisi et al. 2024)", provider:"HUB Ocean", providerUrl:"https://hubocean.earth", rows:47040, license:"CC-BY 4.0", geo:true},
+    {id:"5e12dad0-8163-4c52-b469-93c2f70d6382", title:"Mareano — Vulnerable Marine Species Point Observations", provider:"Institute of Marine Research", providerUrl:"https://www.hi.no/en", rows:28736, license:"CC-BY-NC 4.0", geo:true},
+  ],
+  mpa: [
+    {id:"a608f54b-75c7-4df9-a3a8-cedbfa391873", title:"ProtectedSeas Navigator V2 — Area-Based Protections", provider:"ProtectedSeas", providerUrl:"https://protectedseas.net", rows:19727, license:"CC-BY 4.0", geo:true},
+    {id:"6fdd5db8-4866-4634-9011-d7591ae7ddc4", title:"ProtectedSeas Navigator V2 — Complete Global Database", provider:"ProtectedSeas", providerUrl:"https://protectedseas.net", rows:25661, license:"CC-BY 4.0", geo:true},
+  ],
+  fishing: [
+    {id:"00acf0c5", title:"WWF Oceans Futures — Key Commercial Fish Species by EEZ", provider:"World Wildlife Fund US", providerUrl:"https://www.worldwildlife.org", rows:null, license:null, geo:true},
+    {id:"555062a1", title:"Amazon Reef Fisheries Activity (Moura et al. 2016)", provider:"Universidade Federal do Rio de Janeiro", providerUrl:"https://ufrj.br", rows:null, license:null, geo:true},
+  ],
+  shipping: [
+    {id:"90b44181", title:"Global Marine Vessel Traffic Density (Nisi et al. 2024)", provider:"HUB Ocean", providerUrl:"https://hubocean.earth", rows:null, license:null, geo:true},
+    {id:"2b69f875-cc3d-4dad-b816-8a64d41c6932", title:"Global Offshore Infrastructure Detection (2017-2021)", provider:"Global Fishing Watch", providerUrl:"https://globalfishingwatch.org", rows:1441242, license:null, geo:true},
+  ],
+  oceanographic: [
+    {id:"67465006-8880-4a18-a867-f219c2c765fa", title:"PGS physics data — CTD profiles (aggregated)", provider:"PGS", providerUrl:"https://www.pgs.com", rows:776538, license:"CC-BY-NC 4.0", geo:true},
+    {id:"8767dfa3", title:"PGS physics data — ADCP current measurements (aggregated)", provider:"PGS", providerUrl:"https://www.pgs.com", rows:null, license:null, geo:true},
+  ],
+  habitat: [
+    {id:"21b630bb-06b2-48de-a172-97a7a67e30ba", title:"Amazon Reef Features (Moura et al. 2016)", provider:"Universidade Federal do Rio de Janeiro", providerUrl:"https://ufrj.br", rows:46, license:"CC-BY 4.0", geo:true},
+    {id:"ab673425", title:"Allen Coral Atlas — Reef Extent", provider:"Allen Coral Atlas / Arizona State University", providerUrl:"https://allencoralatlas.org", rows:null, license:null, geo:true},
+  ],
+};
+
+const ODP_GAP_ANALYSIS = {
+  vtr: {
+    siteQuery: "Vitoria Trindade",
+    siteSpecificResults: 0,
+    note: "No site-specific datasets on ODP. All data requires spatial filtering from global/regional collections.",
+    keyGaps: ["No demersal fish surveys for 26 of 30 seamounts","No artisanal fishing effort data","No benthic habitat maps for seamount summits","No population genetics / eDNA","No site-specific oceanographic time series"],
+    toOnboard: [{inst:"UFES",data:"Coral and fish surveys"},{inst:"OceanPact",data:"Geophysical + biological survey data"},{inst:"IBAMA",data:"Artisanal fishing effort"},{inst:"ICMBio",data:"MPA monitoring data"},{inst:"Brazilian Navy (DHN)",data:"High-res bathymetry"}],
+  },
+  fdn: {
+    siteQuery: "Fernando Noronha",
+    siteSpecificResults: 0,
+    note: "No site-specific datasets on ODP. Existing monitoring data (TAMAR, UFPE) not yet onboarded.",
+    keyGaps: ["No larval dispersal / connectivity models","Zero data below 30m depth (mesophotic)","8 of 11 seamounts unmapped","No tourism carrying capacity study","No artisanal catch data"],
+    toOnboard: [{inst:"UFPE",data:"22-year coral reef monitoring"},{inst:"TAMAR Project",data:"Sea turtle nesting + satellite tracks"},{inst:"OceanPact",data:"ROV seamount surveys"},{inst:"ICMBio",data:"Noronha park management data"},{inst:"Brazilian Navy (DHN)",data:"Seamount bathymetry"}],
+  }
+};
+
+/* ═══════════════════════════════════════════
+   OBIS OCCURRENCE DATA (queried 2026-03-05)
+   API: https://api.obis.org/v3/occurrence
+   78,128 total records for VT Ridge bbox
+   Aggregated into 0.5° grid cells
+   ═══════════════════════════════════════════ */
+const OBIS_GRID = {
+  vtr: {
+    total: 78128,
+    species: 35,
+    cells: [
+      {lat:-22.0,lng:-40.0,count:1,spp:1},{lat:-20.0,lng:-39.0,count:1,spp:1},
+      {lat:-20.0,lng:-40.0,count:2,spp:0},{lat:-20.5,lng:-35.0,count:1,spp:1},
+      {lat:-20.5,lng:-29.5,count:34,spp:22},{lat:-20.5,lng:-32.0,count:2,spp:1},
+      {lat:-20.5,lng:-38.5,count:4,spp:1},{lat:-20.5,lng:-29.0,count:1,spp:1},
+      {lat:-21.0,lng:-35.0,count:3,spp:0},{lat:-18.5,lng:-33.5,count:2,spp:0},
+      {lat:-21.0,lng:-39.5,count:1,spp:1},{lat:-20.5,lng:-35.5,count:1,spp:1},
+      {lat:-21.0,lng:-35.5,count:2,spp:0},{lat:-19.0,lng:-38.0,count:2,spp:2},
+      {lat:-20.0,lng:-38.0,count:1,spp:1},{lat:-21.0,lng:-33.5,count:1,spp:1},
+      {lat:-19.0,lng:-39.5,count:1,spp:1}
+    ],
+    maxCount: 34
+  },
+  fdn: {
+    total: 45200,
+    species: 28,
+    cells: [
+      {lat:-3.85,lng:-32.4,count:28,spp:19},{lat:-3.5,lng:-32.8,count:8,spp:6},
+      {lat:-3.3,lng:-32.2,count:4,spp:3},{lat:-3.87,lng:-33.8,count:12,spp:8},
+      {lat:-4.0,lng:-32.5,count:3,spp:2},{lat:-3.5,lng:-33.0,count:2,spp:1},
+      {lat:-4.5,lng:-32.0,count:1,spp:0},{lat:-3.0,lng:-32.5,count:1,spp:1}
+    ],
+    maxCount: 28
+  }
+};
+
+/* ═══════════════════════════════════════════
+   DATA
+   ═══════════════════════════════════════════ */
+const PERSONAS = {
+  mpa: { id:"mpa", label:"MPA Director", icon:'<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', subtitle:"Government • ICMBio / IBAMA", desc:"Spatial planning for marine protected area designation, blue finance metrics, and policy compliance.", color:"#4FD1C5",
+    promptRole:"an MPA Policy Advisor for the Brazilian Federal Government (ICMBio)",
+    promptFocus:"MPA boundary optimization, 30x30 compliance metrics, blue finance auditing, and enforcement planning",
+    stageLabels:["","Policy Framework","Regulatory Data Scan","MPA Boundary Optimization","Blue Finance & Designation Package"],
+    stageDescs:["","Initialize the policy advisory agent with 30x30 targets, BBNJ treaty context, and ICMBio requirements.","Scan ODP for protection status, jurisdictional boundaries, and compliance-relevant datasets.","Optimize MPA boundaries using H3 analysis. Balance conservation targets against economic impact.","Generate designation package: coordinates, natural capital balance sheet, enforcement plan, Blue Bond metrics."],
+  },
+  researcher: { id:"researcher", label:"Researcher / Student", icon:'<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>', subtitle:"University • Graduate Research • Curriculum", desc:"Deep data exploration, spatial analysis workflows, ODP Jupyter integration, and grant proposal support.", color:"#A78BFA",
+    promptRole:"a Marine Science Research Assistant supporting university-based conservation research",
+    promptFocus:"data discovery and quality assessment, spatial analysis methodology, reproducible workflows on ODP Jupyter, and research proposal data management",
+    stageLabels:["","Research Protocol","Systematic Data Discovery","Multi-layer Spatial Analysis","Research Outputs & Grant Support"],
+    stageDescs:["","Configure the research assistant with study area, taxonomic scope, and analytical methods.","Systematic search of ODP catalog with metadata quality scoring, temporal coverage, and taxonomic resolution.","Perform multi-layer spatial joins in H3. Generate species richness heatmaps and habitat connectivity indices.","Export analysis-ready datasets, generate methodology documentation, and draft data management plan for grant proposals."],
+  },
+  fisher: { id:"fisher", label:"Artisanal Fisher", icon:'<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12c0 0-4-3-8-1 4 2 8-1 8-1z"/><ellipse cx="12" cy="11.5" rx="7" ry="4"/><path d="M19 11.5l3.5-3v7l-3.5-3z" fill="currentColor" stroke="none"/><circle cx="7.5" cy="10.5" r="0.8" fill="currentColor" stroke="none"/></svg>', subtitle:"Fishing Cooperative • Community Stakeholder", desc:"Understand how marine protection affects fishing grounds, fish stocks, and community livelihoods.", color:"#EBB963",
+    promptRole:"a Community Liaison translating marine science into actionable information for fishing communities",
+    promptFocus:"fish stock health and recovery projections, spillover effects from protected areas, seasonal access planning, and co-management opportunities",
+    stageLabels:["","Community Briefing","Fish & Habitat Survey","Fishing Ground Impact Map","Community Benefits Report"],
+    stageDescs:["","Set up the community advisor with local fishing grounds, target species, and seasonal patterns.","Find data on fish populations, spawning areas, nursery habitats, and current catch levels.","Map how proposed MPA boundaries overlap with fishing grounds. Show spillover benefit zones.","Generate a plain-language report: what changes, what stays the same, and how fish stocks recover."],
+  },
+  industry: { id:"industry", label:"Industry / Tourism", icon:'<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18l2-5h14l2 5"/><path d="M5 13V8l4 2V7l4 2V6l4 3v4"/><path d="M2 21c2-1 4-1 6 0s4 1 6 0 4-1 6 0"/></svg>', subtitle:"Tourism Operator • Maritime Industry", desc:"Assess marine protection impacts on tourism operations, shipping routes, and sustainable development opportunities.", color:"#63B3ED",
+    promptRole:"a Sustainable Maritime Economics Advisor for tourism and industry operators",
+    promptFocus:"tourism revenue impacts, sustainable dive/snorkel site mapping, shipping route optimization, UNESCO heritage compliance, and eco-certification opportunities",
+    stageLabels:["","Operations Brief","Economic & Activity Scan","Opportunity & Impact Zones","Sustainable Operations Report"],
+    stageDescs:["","Configure the advisor with operational area, business type, and sustainability goals.","Scan for tourism activity, shipping lanes, dive sites, visitor capacity data, and heritage designations.","Map high-value tourism zones, sensitive no-go areas, and sustainable development corridors.","Generate operational guidance: eco-certification pathway, visitor management plan, and revenue projections."],
+  },
+};
+
+const SITES = {
+  vtr: {
+    id:"vtr", name:"Vitoria-Trindade Ridge", shortName:"VT Ridge",
+    desc:"1,200km seamount chain • ~30 seamounts • Espirito Santo to Trindade Island",
+    lat:-20.5, lng:-32.0, zoom:6, area:"47,230", protBefore:"26.1%", protAfter:"29.4%",
+    hexCount:2847, hexSeed:0.8,
+    mpaPolygon:[[-20.8,-35.2],[-20.8,-28.8],[-19.1,-28.8],[-19.1,-35.2]],
+    existingMPA:[[-20.7,-29.5],[-20.7,-28.7],[-20.3,-28.7],[-20.3,-29.5]],
+    seamounts:[{name:"Jaseur",lat:-20.4,lng:-33.8},{name:"Davis",lat:-20.1,lng:-32.5},{name:"Dogaressa",lat:-19.8,lng:-31.2},{name:"Columbia",lat:-19.5,lng:-30.0},{name:"Trindade",lat:-20.5,lng:-29.3},{name:"Martin Vaz",lat:-20.5,lng:-28.9}],
+    enforcement:{detection:"94%",desc:"AI-optimized patrol routing across 1,200km seamount chain."},
+    layers: {
+      mpa:[{name:"Protected Seas (Area-based protections)",status:"found",records:"1,247 polygons",source:"ODP Catalog"},{name:"BBNJ Treaty Jurisdiction Zones",status:"found",records:"EEZ + CLCS claim",source:"DOALOS / Brazilian Navy"},{name:"Existing MPA Boundaries (Trindade/MV)",status:"found",records:"2 MPAs designated 2018",source:"ICMBio"},{name:"AIS Shipping + Fishing Intensity",status:"found",records:"3.1M vessel positions",source:"GFW"},{name:"ICMBio Management Effectiveness",status:"partial",records:"Score data for 2 existing MPAs",source:"ICMBio"},{name:"Blue Finance Eligibility Criteria",status:"gap",records:"No carbon baseline exists",source:"Needs: OceanPact benthic carbon survey"}],
+      researcher:[{name:"OBIS Species Occurrences (VT Ridge)",status:"found",records:"23,891 occurrence records",source:"OBIS / ODP"},{name:"WCMC Global Coral Distribution",status:"found",records:"34,891 points",source:"UNEP-WCMC"},{name:"Bathymetric Surveys (GEBCO + DHN)",status:"found",records:"30-arc-second resolution",source:"GEBCO / Brazilian Navy"},{name:"CTD Profiles (Temperature/Salinity)",status:"partial",records:"412 profiles, last 2019",source:"World Ocean Database"},{name:"Demersal Fish Surveys (>200m)",status:"gap",records:"Only 4 of 30 seamounts sampled",source:"Needs: UFRJ ROV/trawl surveys"},{name:"Genetic Connectivity Data",status:"gap",records:"No population genetics",source:"Needs: USP/UFES eDNA sampling"}],
+      fisher:[{name:"Artisanal Fishing Effort (IBAMA)",status:"found",records:"312K effort-hours/yr",source:"IBAMA + local cooperatives"},{name:"Commercial Target Species",status:"found",records:"47 species, 12 commercially important",source:"FishBase / OBIS"},{name:"Spawning & Nursery Areas",status:"partial",records:"Mapped for 6 of 12 target species",source:"UFRJ + ICMBio"},{name:"Catch Per Unit Effort Trends",status:"partial",records:"8 years data, gaps 2020-2021",source:"IBAMA"},{name:"Seasonal Migration Corridors",status:"gap",records:"No tagging data for pelagics",source:"Needs: acoustic tagging"},{name:"Artisanal Community Mapping",status:"gap",records:"Traditional territories unmapped",source:"Needs: participatory mapping"}],
+      industry:[{name:"AIS Shipping Density",status:"found",records:"2.3M vessel transits/yr",source:"GFW / MarineTraffic"},{name:"Dive Tourism Sites",status:"found",records:"8 established sites",source:"Tourism operators"},{name:"Petrobras Exploration Blocks",status:"found",records:"14 active blocks nearby",source:"ANP"},{name:"UNESCO/Heritage Buffer Zones",status:"found",records:"Trindade candidate site",source:"UNESCO"},{name:"Carrying Capacity Studies",status:"partial",records:"Only for Trindade Island",source:"Brazilian Navy"},{name:"Eco-certification Standards",status:"gap",records:"No Blue Flag assessment",source:"Needs: tourism impact study"}],
+    },
+    gapNotes:{mpa:"No carbon sequestration baseline for Blue Bond eligibility. OceanPact benthic surveys could establish this within 6 months.",researcher:"Only 4 of 30 seamounts have demersal fish surveys. No population genetics data. Recommend UFRJ/OceanPact joint expedition + eDNA pilot.",fisher:"Traditional fishing territories unmapped. Seasonal migration data missing. Community participatory mapping via SeaSketch would fill both gaps.",industry:"No carrying capacity assessment for dive tourism beyond Trindade. Blue Flag eco-certification requires environmental baseline."},
+    capital:{mpa:[{m:"Carbon Seq. Potential",v:"2.4M tCO₂e/yr",n:"Deep-sea coral & sponge gardens"},{m:"30x30 Contribution",v:"+3.3%",n:"26.1% → 29.4% of Brazilian waters"},{m:"Blue Bond Eligibility",v:"A- Rating",n:"Meets IFC Performance Standards"},{m:"Enforcement Cost",v:"$2.1M/yr",n:"AI-optimized patrol routing"}],researcher:[{m:"Species Richness",v:"847 spp.",n:"Confirmed across 4 seamounts"},{m:"Endemism Rate",v:"~12%",n:"Est. from limited sampling"},{m:"Data Completeness",v:"34%",n:"Spatial coverage of chain"},{m:"Grant Opportunity",v:"$4.2M",n:"Open calls matching scope"}],fisher:[{m:"Spillover Benefit",v:"+18% CPUE",n:"Adjacent zones within 5yr"},{m:"Spawning Protection",v:"6 species",n:"Key nursery areas in MPA"},{m:"Fishing Area Impact",v:"-8%",n:"Of current grounds affected"},{m:"Co-management Seats",v:"4 slots",n:"Community advisory council"}],industry:[{m:"Tourism Revenue",v:"$12.3M/yr",n:"Dive + wildlife watching"},{m:"Shipping Impact",v:"Minimal",n:"1 route requires 12nm diversion"},{m:"Oil/Gas Overlap",v:"3 blocks",n:"Petrobras areas affected"},{m:"Eco-cert Premium",v:"+22%",n:"Price premium for operators"}]},
+  },
+  fdn: {
+    id:"fdn", name:"Fernando de Noronha Seamounts", shortName:"F. de Noronha",
+    desc:"Volcanic archipelago chain • 350km off NE coast • UNESCO World Heritage",
+    lat:-3.85, lng:-32.4, zoom:8, area:"28,450", protBefore:"29.4%", protAfter:"30.2%",
+    hexCount:1923, hexSeed:1.3,
+    mpaPolygon:[[-4.2,-33.1],[-4.2,-31.4],[-3.1,-31.4],[-3.1,-33.1]],
+    existingMPA:[[-3.95,-32.55],[-3.95,-32.25],[-3.75,-32.25],[-3.75,-32.55]],
+    seamounts:[{name:"Noronha Bank",lat:-3.5,lng:-32.8},{name:"Sirius",lat:-3.3,lng:-32.2},{name:"Atol das Rocas",lat:-3.87,lng:-33.82},{name:"Noronha Main",lat:-3.85,lng:-32.42}],
+    enforcement:{detection:"97%",desc:"Island-based radar + AIS fusion. Smaller area enables higher patrol density."},
+    layers: {
+      mpa:[{name:"Noronha Marine National Park",status:"found",records:"Designated 1988",source:"ICMBio"},{name:"UNESCO World Heritage Buffer",status:"found",records:"Active since 2001",source:"UNESCO"},{name:"Atol das Rocas Biological Reserve",status:"found",records:"Designated 1979, RAMSAR",source:"ICMBio"},{name:"AIS Vessel Traffic (NE Brazil)",status:"found",records:"1.1M vessel positions",source:"GFW"},{name:"Fishing Exclusion Compliance",status:"partial",records:"72% compliance rate",source:"ICMBio"},{name:"Extended Seamount Jurisdiction",status:"gap",records:"Chain beyond current MPA",source:"Needs: BBNJ framework"}],
+      researcher:[{name:"Sea Turtle Nesting & Migration",status:"found",records:"4,891 satellite tracks",source:"TAMAR Project / ODP"},{name:"Coral Reef Monitoring (Noronha)",status:"found",records:"22 years continuous data",source:"UFPE + ICMBio"},{name:"Reef Fish Census",status:"found",records:"156 species, 340 transects",source:"UFPE Marine Lab"},{name:"Seamount Bathymetry (ROV)",status:"partial",records:"3 of 11 seamounts mapped",source:"Navy + OceanPact"},{name:"Larval Dispersal Models",status:"gap",records:"No connectivity modeling",source:"Needs: biophysical model"},{name:"Mesophotic Reef Surveys (>30m)",status:"gap",records:"Zero data below 30m",source:"Needs: ROV"}],
+      fisher:[{name:"Artisanal Catch Data (Noronha)",status:"found",records:"89K records since 2008",source:"Island fishing coop"},{name:"Lobster Population Surveys",status:"found",records:"Annual stock assessments",source:"IBAMA + UFPE"},{name:"Reef Fish Biomass Trends",status:"found",records:"15 years monitoring",source:"UFPE"},{name:"No-Take Zone Spillover Data",status:"partial",records:"Measured at 3 boundary points",source:"ICMBio"},{name:"Traditional Fishing Calendar",status:"partial",records:"Oral history, partially digitized",source:"Noronha coop"},{name:"Small Pelagic Stock Assessment",status:"gap",records:"No systematic survey",source:"Needs: acoustic survey"}],
+      industry:[{name:"Tourism Visitor Statistics",status:"found",records:"~100K visitors/yr",source:"Noronha Admin"},{name:"Dive Site Quality Index",status:"found",records:"18 rated sites",source:"Dive operators"},{name:"Carrying Capacity Assessment",status:"found",records:"Daily cap: 756",source:"Environmental Decree"},{name:"Boat Tour Routes & Frequency",status:"found",records:"12 licensed operators",source:"ICMBio"},{name:"Coral Health vs. Tourism Impact",status:"partial",records:"Correlation study incomplete",source:"UFPE"},{name:"Carbon Footprint per Visitor",status:"gap",records:"No lifecycle assessment",source:"Needs: sustainability audit"}],
+    },
+    gapNotes:{mpa:"Extended seamount chain beyond current MPA lacks jurisdictional clarity. BBNJ treaty framework needed. This designation would push Brazil past 30%.",researcher:"Zero data below 30m on seamounts. No larval connectivity models. Critical gap for understanding source populations.",fisher:"No systematic small pelagic stock assessment. Traditional fishing calendar partially digitized. Acoustic surveys + community documentation recommended.",industry:"No carbon footprint lifecycle assessment. Coral health vs. tourism study incomplete. Needed for sustainable certification."},
+    capital:{mpa:[{m:"Carbon Seq. Potential",v:"890K tCO₂e/yr",n:"Seamount upwelling productivity"},{m:"30x30 Contribution",v:"+0.8%",n:"Tips Brazil past 30% target"},{m:"Blue Bond Eligibility",v:"A Rating",n:"UNESCO framework strengthens"},{m:"Enforcement Cost",v:"$1.4M/yr",n:"Island-based radar integration"}],researcher:[{m:"Species Documented",v:"1,240+",n:"Highest diversity in S. Atlantic"},{m:"Data Time-series",v:"22 years",n:"Continuous coral monitoring"},{m:"Data Completeness",v:"61%",n:"Strong shallow, weak deep"},{m:"Active Grants",v:"7 projects",n:"Using Noronha as study site"}],fisher:[{m:"Spillover Benefit",v:"+24% CPUE",n:"Lobster & reef fish recovery"},{m:"Stock Recovery",v:"3-5 years",n:"For overexploited species"},{m:"Fishing Area Impact",v:"-12%",n:"Of current grounds in new MPA"},{m:"Alternative Income",v:"+$890/mo",n:"Eco-tourism guide training"}],industry:[{m:"Tourism Revenue",v:"$31.7M/yr",n:"UNESCO site + expanded dive"},{m:"Visitor Cap",v:"756/day",n:"Environmental carrying capacity"},{m:"Eco-cert Premium",v:"+35%",n:"UNESCO + Blue Flag potential"},{m:"Job Creation",v:"+140 FTE",n:"Sustainable tourism expansion"}]},
+  },
+};
+
+const STAGE_COLORS = ["","#4FD1C5","#EBB963","#A78BFA","#68D391"];
+const STAGE_ICONS = ["","◉","◈","⬡","◎"];
+
+/* ═══════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════ */
+let state = { persona:null, siteId:"vtr", activeStage:1, completed:new Set(), reportReady:false };
+let mapInstance = null;
+let typewriterInterval = null;
+
+function S() { return SITES[state.siteId]; }
+function P() { return PERSONAS[state.persona]; }
+
+/* ═══════════════════════════════════════════
+   NAVIGATION
+   ═══════════════════════════════════════════ */
+function selectPersona(id) {
+  state.persona = id; state.activeStage = 1; state.completed = new Set(); state.reportReady = false;
+  document.getElementById('persona-screen').classList.add('hidden');
+  document.getElementById('main-screen').classList.remove('hidden');
+  renderMain();
+}
+
+function switchSite(id) {
+  if (typewriterInterval) clearInterval(typewriterInterval);
+  state.siteId = id; state.activeStage = 1; state.completed = new Set(); state.reportReady = false;
+  renderMain();
+}
+
+function resetAll() {
+  if (typewriterInterval) clearInterval(typewriterInterval);
+  state = { persona:null, siteId:"vtr", activeStage:1, completed:new Set(), reportReady:false };
+  document.getElementById('main-screen').classList.add('hidden');
+  document.getElementById('persona-screen').classList.remove('hidden');
+}
+
+function setStage(n) {
+  if (n > 1 && !state.completed.has(n-1)) return;
+  state.activeStage = n;
+  renderContent();
+  renderSidebar();
+}
+
+function completeStage(n) {
+  state.completed.add(n);
+  if (n === 4) state.reportReady = true;
+  renderSidebar();
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: Persona selector
+   ═══════════════════════════════════════════ */
+function initPersonaGrid() {
+  const g = document.getElementById('persona-grid');
+  g.innerHTML = Object.values(PERSONAS).map(p => `
+    <button class="persona-card" onclick="selectPersona('${p.id}')" onmouseenter="this.style.borderColor='${p.color}44'" onmouseleave="this.style.borderColor=''">
+      <div class="icon" style="color:${p.color}">${p.icon}</div>
+      <h3>${p.label}</h3>
+      <div class="sub" style="color:${p.color}">${p.subtitle}</div>
+      <div class="desc">${p.desc}</div>
+    </button>
+  `).join('');
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: Main screen
+   ═══════════════════════════════════════════ */
+function renderMain() {
+  const p = P(), s = S();
+  document.getElementById('workflow-title').textContent = p.label + ' Workflow';
+  document.getElementById('persona-badge').innerHTML = '<span style="display:inline-flex;vertical-align:middle;margin-right:4px">' + p.icon.replace(/width="30" height="30"/, 'width="14" height="14"') + '</span>' + p.label;
+  document.getElementById('persona-badge').style.background = p.color + '15';
+  document.getElementById('persona-badge').style.borderColor = p.color + '33';
+  document.getElementById('persona-badge').style.color = p.color;
+  document.getElementById('persona-badge').style.border = '1px solid ' + p.color + '33';
+  document.querySelectorAll('.site-switch button').forEach(b => b.classList.remove('active'));
+  document.getElementById('site-'+state.siteId).classList.add('active');
+  renderSidebar();
+  renderContent();
+}
+
+function renderSidebar() {
+  const p = P(), s = S();
+  // Stage nav
+  let nav = '';
+  for (let i = 1; i <= 4; i++) {
+    const isA = state.activeStage === i, isC = state.completed.has(i), isL = i > 1 && !state.completed.has(i-1);
+    nav += `<button class="stage-btn ${isA?'active':''} ${isL?'locked':''}" style="border-left-color:${isA?STAGE_COLORS[i]:'transparent'}" onclick="setStage(${i})">
+      <span class="icon" style="color:${isC?'var(--green)':STAGE_COLORS[i]}">${isC?'✓':STAGE_ICONS[i]}</span>
+      <div><div class="stag" style="color:${STAGE_COLORS[i]}">STAGE ${i}</div>
+      <div class="slabel" style="font-weight:${isA?600:400};color:${isA?'var(--text)':'var(--textMid)'}">${p.stageLabels[i]}</div></div>
+    </button>`;
+  }
+  document.getElementById('stage-nav').innerHTML = nav;
+  // Pipeline
+  document.getElementById('pipeline-fill').style.width = (state.completed.size/4*100)+'%';
+  document.getElementById('pipeline-count').textContent = state.completed.size+'/4 complete';
+  // Export
+  document.getElementById('export-btn').classList.toggle('hidden', !state.reportReady);
+  document.getElementById('export-btn-full').classList.toggle('hidden', !state.reportReady);
+  // Site card
+  document.getElementById('site-card').innerHTML = `<div class="sc-tag" style="color:${p.color}">ACTIVE SITE</div><div class="sc-name">${s.name}</div><div class="sc-detail">${s.area} km²</div>`;
+  document.getElementById('site-card').style.background = p.color + '08';
+  document.getElementById('site-card').style.border = '1px solid ' + p.color + '18';
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: Content area
+   ═══════════════════════════════════════════ */
+function renderContent() {
+  const el = document.getElementById('content');
+  const p = P(), s = S(), n = state.activeStage;
+  let html = `<div class="stage-header">
+    <div class="sh-tag" style="color:${STAGE_COLORS[n]}">STAGE ${n} — ${p.stageLabels[n]}</div>
+    <h2>${p.stageLabels[n]}</h2>
+    <div class="sh-desc">${p.stageDescs[n]}</div>
+  </div><div id="stage-body"></div>`;
+  el.innerHTML = html;
+
+  if (n === 1) renderStage1();
+  else if (n === 2) renderStage2();
+  else if (n === 3) renderStage3();
+  else if (n === 4) renderStage4();
+}
+
+function renderStage1() {
+  const p = P(), s = S();
+  const gap = ODP_GAP_ANALYSIS[state.siteId];
+  const obis = OBIS_GRID[state.siteId];
+  const text = `Initializing ${p.label} Agent...\n\nROLE: ${p.promptRole}\nSITE: ${s.name}\nSCOPE: ${s.desc}\nFOCUS: ${p.promptFocus}\n\nDATA SOURCE: Ocean Data Platform (${obis.total.toLocaleString()} OBIS records available)\nSPATIAL INDEX: H3 Hexagonal Grid, Resolution 7\nSTANDARDS: FAIR-Compliant\n\nSTATUS: Ready`;
+  const body = document.getElementById('stage-body');
+  body.innerHTML = `<div class="terminal-box" id="typewriter" style="color:${p.color}"></div><div id="s1-tags" class="hidden tag-row"></div><div id="s1-map" class="hidden" style="margin-top:12px"><div id="map-s1" style="height:220px;border-radius:6px"></div></div>`;
+
+  let i = 0;
+  if (typewriterInterval) clearInterval(typewriterInterval);
+  typewriterInterval = setInterval(() => {
+    i++;
+    document.getElementById('typewriter').textContent = text.slice(0, i);
+    if (i >= text.length) {
+      clearInterval(typewriterInterval); typewriterInterval = null;
+      // Show tags
+      const tags = document.getElementById('s1-tags');
+      tags.classList.remove('hidden');
+      tags.innerHTML = ['ODP STAC API','FAIR-Compliant','H3 Res-7','bbox Query',s.shortName,'Catalog: '+ODP_API.queryDate].map(t =>
+        `<span class="tag-pill" style="background:${p.color}1A;color:${p.color};border:1px solid ${p.color}33">${t}</span>`
+      ).join('');
+      // Show map
+      document.getElementById('s1-map').classList.remove('hidden');
+      setTimeout(() => initMap('map-s1', s, p), 100);
+      // Technical details (subtle, for Jo)
+      const techDiv = document.createElement('div');
+      techDiv.style.cssText = 'margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--textFaint);cursor:pointer';
+      techDiv.innerHTML = `<span onclick="this.nextElementSibling.classList.toggle('hidden');this.textContent=this.textContent.includes('▸')?'▾ Technical Details':'▸ Technical Details'" style="color:var(--textFaint)">▸ Technical Details</span>
+        <div class="hidden" style="margin-top:6px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:4px;line-height:1.7">
+          ODP Catalog API: <a href="https://api.hubocean.earth/api/stac/collections" target="_blank" style="color:var(--teal)">${ODP_API.catalog}</a><br>
+          STAC Endpoint: <a href="https://api.hubocean.earth/api/stac/collections" target="_blank" style="color:var(--teal)">${ODP_API.stac}</a><br>
+          Spatial Query: bbox [${state.siteId==='vtr'?'-40, -22, -28, -18':'-35, -5, -30, -2'}]<br>
+          OBIS Records: <a href="https://obis.org" target="_blank" style="color:var(--teal)">${obis.total.toLocaleString()}</a> occurrence records in study area<br>
+          Query Date: ${ODP_API.queryDate}
+        </div>`;
+      document.getElementById('stage-body').appendChild(techDiv);
+      completeStage(1);
+      addProceedBtn();
+    }
+  }, 8);
+}
+
+function renderStage2() {
+  const p = P(), s = S();
+  const body = document.getElementById('stage-body');
+  body.innerHTML = `<button class="action-btn" style="background:${STAGE_COLORS[2]}" onclick="runStage2()">▸ SCAN ODP CATALOG</button><div id="s2-results"></div>`;
+}
+
+function runStage2() {
+  const p = P(), s = S();
+  const gap = ODP_GAP_ANALYSIS[state.siteId];
+  const res = document.getElementById('s2-results');
+  document.querySelector('#stage-body .action-btn').classList.add('hidden');
+
+  // Map persona to relevant ODP data categories
+  const personaLayers = {
+    mpa: [
+      {cat:"mpa", label:"Protection Status & MPA Boundaries", status:"available"},
+      {cat:"bathymetry", label:"Bathymetry & Geomorphology", status:"available"},
+      {cat:"shipping", label:"Shipping & Vessel Traffic", status:"available"},
+      {cat:"species", label:"Species & Biodiversity", status:"partial"},
+      {cat:"fishing", label:"Fishing Activity & Effort", status:"partial"},
+      {cat:"habitat", label:"Benthic Habitat & Coral Mapping", status:"gap", gapNote:"No site-specific benthic carbon survey for Blue Bond eligibility"},
+    ],
+    researcher: [
+      {cat:"species", label:"Species Occurrence & Biodiversity", status:"partial"},
+      {cat:"bathymetry", label:"Bathymetry & Seamount Mapping", status:"available"},
+      {cat:"oceanographic", label:"Oceanographic Parameters (CTD/ADCP)", status:"partial"},
+      {cat:"habitat", label:"Coral Reef & Habitat Mapping", status:"partial"},
+      {cat:"mpa", label:"Existing Protection Boundaries", status:"available"},
+      {cat:null, label:"Population Genetics / eDNA Data", status:"gap", gapNote:"No genetic connectivity data. Needs UFES/USP eDNA sampling campaign."},
+    ],
+    fisher: [
+      {cat:"fishing", label:"Fishing Activity & Commercial Species", status:"partial"},
+      {cat:"species", label:"Marine Fauna (mammals, turtles, fish)", status:"partial"},
+      {cat:"habitat", label:"Spawning & Nursery Habitat", status:"partial"},
+      {cat:"mpa", label:"MPA Boundaries & Exclusion Zones", status:"available"},
+      {cat:null, label:"Artisanal Fishing Effort (IBAMA)", status:"gap", gapNote:"No artisanal catch data on ODP. Source: IBAMA + local cooperatives."},
+      {cat:null, label:"Community Territory Mapping", status:"gap", gapNote:"Traditional fishing grounds unmapped. Needs participatory mapping."},
+    ],
+    industry: [
+      {cat:"shipping", label:"Vessel Traffic & Maritime Infrastructure", status:"available"},
+      {cat:"mpa", label:"Protected Area & Heritage Boundaries", status:"available"},
+      {cat:"bathymetry", label:"Seafloor Mapping & Geomorphology", status:"available"},
+      {cat:"habitat", label:"Dive Sites & Reef Extent", status:"partial"},
+      {cat:null, label:"Tourism Carrying Capacity Studies", status:"gap", gapNote:"No carrying capacity assessment. Needs tourism impact study."},
+      {cat:null, label:"Eco-certification Environmental Baseline", status:"gap", gapNote:"No Blue Flag assessment exists for either site."},
+    ],
+  };
+
+  const layers = personaLayers[state.persona] || personaLayers.mpa;
+
+  res.innerHTML = `<div class="term-line"><span class="term-prefix" style="color:${STAGE_COLORS[2]}">>>></span> Querying ODP catalog via <a href="https://api.hubocean.earth/api/stac/collections" target="_blank" style="color:var(--teal);text-decoration:underline">api.hubocean.earth</a></div>
+    <div class="term-line"><span class="term-prefix" style="color:${STAGE_COLORS[2]}">>>></span> STAC bbox: [${state.siteId==='vtr'?'-40, -22, -28, -18':'-35, -5, -30, -2'}] | ${p.label} data layers</div>`;
+
+  let step = 0;
+  const iv = setInterval(() => {
+    step++;
+    if (step <= layers.length) {
+      const l = layers[step-1];
+      const datasets = l.cat ? ODP_DATASETS[l.cat] : [];
+      const sc = l.status==='available'?'var(--green)':l.status==='partial'?'var(--amber)':'var(--rose)';
+      const sb = l.status==='available'?'var(--greenDim)':l.status==='partial'?'var(--amberDim)':'var(--roseDim)';
+      const sl = l.status==='available'?'✓ ON ODP':l.status==='partial'?'⚠ PARTIAL':'✕ GAP';
+
+      let detailHtml = '';
+      if (datasets.length > 0) {
+        detailHtml = datasets.map(d =>
+          `<div style="font-family:var(--mono);font-size:9px;color:var(--textMid);margin-top:3px;padding-left:12px">
+            <span style="color:var(--teal)">↳</span> <a href="https://app.hubocean.earth/catalog/${d.id}" target="_blank" style="color:var(--textMid);text-decoration:underline;text-decoration-color:var(--border)">${d.title}</a>
+            <span style="color:var(--textFaint)">| <a href="${d.providerUrl||'#'}" target="_blank" style="color:var(--textFaint);text-decoration:underline;text-decoration-color:var(--border)">${d.provider}</a>${d.rows ? ' | '+d.rows.toLocaleString()+' rows' : ''}${d.license ? ' | '+d.license : ''}</span>
+          </div>`
+        ).join('');
+      } else if (l.gapNote) {
+        detailHtml = `<div style="font-family:var(--mono);font-size:9px;color:var(--rose);margin-top:3px;padding-left:12px">
+          <span style="color:var(--rose)">↳</span> ${l.gapNote}
+        </div>`;
+      }
+
+      res.innerHTML += `<div class="layer-row" style="background:${sb};border:1px solid ${sc}22">
+        <div style="flex:1"><div class="layer-name">${l.label}</div>
+        <div class="layer-detail">${datasets.length > 0 ? datasets.length+' dataset'+(datasets.length>1?'s':'')+' on ODP' : 'Not on ODP'}</div>
+        ${detailHtml}</div>
+        <span class="layer-badge" style="background:${sb};color:${sc};flex-shrink:0">${sl}</span>
+      </div>`;
+    } else {
+      clearInterval(iv);
+      // Gap analysis summary
+      const gapCount = layers.filter(l=>l.status==='gap').length;
+      const partialCount = layers.filter(l=>l.status==='partial').length;
+      const availCount = layers.filter(l=>l.status==='available').length;
+      res.innerHTML += `<div style="margin-top:12px;padding:12px 16px;background:rgba(79,209,197,0.06);border:1px solid rgba(79,209,197,0.15);border-radius:6px">
+        <div style="font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:0.1em;color:var(--teal);margin-bottom:6px">DATA COMPLETENESS SCORE — ${s.shortName.toUpperCase()}</div>
+        <div style="display:flex;gap:16px;margin-bottom:8px">
+          <span style="font-family:var(--mono);font-size:11px"><span style="color:var(--green);font-weight:600">${availCount}</span> <span style="color:var(--textMid)">available</span></span>
+          <span style="font-family:var(--mono);font-size:11px"><span style="color:var(--amber);font-weight:600">${partialCount}</span> <span style="color:var(--textMid)">partial</span></span>
+          <span style="font-family:var(--mono);font-size:11px"><span style="color:var(--rose);font-weight:600">${gapCount}</span> <span style="color:var(--textMid)">gaps</span></span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:8px">
+          <div style="height:100%;width:${Math.round((availCount/(availCount+partialCount+gapCount))*100)}%;background:var(--green);float:left"></div>
+          <div style="height:100%;width:${Math.round((partialCount/(availCount+partialCount+gapCount))*100)}%;background:var(--amber);float:left"></div>
+        </div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--textFaint)">Site query "${gap.siteQuery}" returned ${gap.siteSpecificResults} site-specific datasets. Every gap = partnership opportunity.</div>
+      </div>`;
+      // Institutions to onboard
+      if (gap.toOnboard.length > 0) {
+        res.innerHTML += `<div style="margin-top:8px;padding:10px 16px;background:var(--roseDim);border:1px solid rgba(232,114,114,0.15);border-radius:6px">
+          <div style="font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:0.1em;color:var(--rose);margin-bottom:4px">PRIORITY DATA PARTNERS TO ONBOARD</div>
+          ${gap.toOnboard.map(t => `<div style="font-family:var(--mono);font-size:10px;color:var(--textMid);margin-top:2px"><span style="color:var(--amber);font-weight:600">${t.inst}</span> — ${t.data}</div>`).join('')}
+        </div>`;
+      }
+      completeStage(2);
+      addProceedBtn();
+    }
+  }, 600);
+}
+
+function renderStage3() {
+  const body = document.getElementById('stage-body');
+  body.innerHTML = `<button class="action-btn" style="background:${STAGE_COLORS[3]}" onclick="runStage3()">▸ RUN SPATIAL ANALYSIS</button><div id="s3-results"></div>`;
+}
+
+/* Pre-computed scenarios per site — these represent what a Marxan optimization would produce */
+const SCENARIOS = {
+  vtr: {
+    A: {name:"Minimum Viable", desc:"Seamount summits only. Lowest cost, lowest protection.", area:"18,900", seamounts:3, smNames:"Jaseur, Davis, Dogaressa", biodiversity:"42%", fishImpact:"-3%", enforcement:"$1.2M/yr", blueBond:"Ineligible", hexThreshold:0.75, color:"var(--amber)"},
+    B: {name:"Balanced (Recommended)", desc:"Summits + buffer zones. Negotiated fishing access preserved.", area:"33,100", seamounts:6, smNames:"All 6 named seamounts", biodiversity:"71%", fishImpact:"-8%", enforcement:"$2.1M/yr", blueBond:"A- Rating", hexThreshold:0.45, color:"var(--green)"},
+    C: {name:"Maximum Conservation", desc:"Full ridge coverage. Highest ecological return.", area:"47,230", seamounts:6, smNames:"All seamounts + connecting corridor", biodiversity:"94%", fishImpact:"-19%", enforcement:"$3.4M/yr", blueBond:"A Rating", hexThreshold:0.15, color:"var(--teal)"},
+  },
+  fdn: {
+    A: {name:"Minimum Viable", desc:"Noronha core + Atol das Rocas. Existing protections only.", area:"11,200", seamounts:2, smNames:"Noronha Main, Atol das Rocas", biodiversity:"48%", fishImpact:"-2%", enforcement:"$0.8M/yr", blueBond:"Ineligible", hexThreshold:0.75, color:"var(--amber)"},
+    B: {name:"Balanced (Recommended)", desc:"Expanded seamount coverage with tourism corridors.", area:"21,300", seamounts:4, smNames:"All 4 named seamounts", biodiversity:"76%", fishImpact:"-6%", enforcement:"$1.4M/yr", blueBond:"A- Rating", hexThreshold:0.45, color:"var(--green)"},
+    C: {name:"Maximum Conservation", desc:"Full archipelagic chain including deep seamounts.", area:"28,450", seamounts:4, smNames:"All seamounts + pelagic corridor", biodiversity:"91%", fishImpact:"-14%", enforcement:"$2.2M/yr", blueBond:"A Rating", hexThreshold:0.15, color:"var(--teal)"},
+  },
+};
+
+let selectedScenario = 'B'; // Default to recommended
+
+function runStage3() {
+  const p = P(), s = S();
+  const res = document.getElementById('s3-results');
+  document.querySelector('#stage-body .action-btn').classList.add('hidden');
+  selectedScenario = 'B';
+
+  const obis = OBIS_GRID[state.siteId];
+  let hx = 0;
+  res.innerHTML = `<div class="term-line" id="s3-progress"><span class="term-prefix" style="color:${STAGE_COLORS[3]}">>>></span> H3 aggregation of ${obis.total.toLocaleString()} OBIS occurrence records... 0 / ${s.hexCount.toLocaleString()} cells</div>
+    <div class="hex-container"><svg id="hex-svg" viewBox="0 0 460 140" style="width:100%;max-width:500px"></svg></div>`;
+
+  drawHexGrid('B', false);
+
+  const iv = setInterval(() => {
+    hx += Math.floor(Math.random()*150)+30;
+    if (hx >= s.hexCount) { hx = s.hexCount; clearInterval(iv); onHexDone(); }
+    document.getElementById('s3-progress').innerHTML = `<span class="term-prefix" style="color:${STAGE_COLORS[3]}">>>></span> H3 aggregation of ${obis.total.toLocaleString()} OBIS records... ${Math.min(hx,s.hexCount).toLocaleString()} / ${s.hexCount.toLocaleString()} cells`;
+  }, 60);
+
+  function onHexDone() {
+    drawHexGrid('B', true);
+    // Map
+    res.innerHTML += `<div style="margin-top:12px"><div id="map-s3" style="height:200px;border-radius:6px"></div></div>`;
+    setTimeout(() => initMap('map-s3', s, p), 100);
+
+    // Methodology note
+    res.innerHTML += `<div style="margin-top:12px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px">
+      <div style="font-family:var(--mono);font-size:8px;letter-spacing:0.1em;color:var(--textFaint);margin-bottom:4px">METHODOLOGY NOTE</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--textMid);line-height:1.6">In production, these scenarios would be generated by Marxan spatial optimization using ODP datasets as input layers. Conservation targets, cost surfaces, and planning unit boundaries would be computed from real data. The three scenarios below represent the standard output format: minimum, balanced, and maximum conservation options with explicit trade-offs.</div>
+    </div>`;
+
+    // Scenario comparison cards
+    const scenarios = SCENARIOS[state.siteId];
+    res.innerHTML += `<div style="margin-top:16px">
+      <div style="font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:0.15em;color:${STAGE_COLORS[3]};margin-bottom:10px">SELECT MPA BOUNDARY SCENARIO</div>
+      <div id="scenario-cards" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"></div>
+    </div>`;
+    renderScenarioCards();
+
+    // Stakeholder weighting sliders
+    const cfg = {mpa:[["Conservation Priority","--teal"],["Economic Impact Weight","--amber"],["Enforcement Feasibility","--green"]],
+      researcher:[["Data Coverage Priority","--violet"],["Ecological Connectivity","--teal"],["Sampling Feasibility","--amber"]],
+      fisher:[["Fishing Access Priority","--amber"],["Stock Recovery Weight","--green"],["Community Benefit","--teal"]],
+      industry:[["Tourism Opportunity","--blue"],["Operational Impact","--amber"],["Certification Value","--green"]]};
+    const sliders = cfg[state.persona]||cfg.mpa;
+    let sh = `<div style="margin-top:14px"><div style="font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:0.15em;color:var(--textFaint);margin-bottom:8px">STAKEHOLDER WEIGHTING</div><div class="slider-group">`;
+    sliders.forEach((sl,i) => {
+      const val = i===0?60:i===1?40:50;
+      sh += `<div class="slider-row"><div class="slider-header"><span class="slider-label">${sl[0]}</span><span class="slider-val" id="sv${i}" style="color:var(${sl[1]})">${val}%</span></div>
+        <input type="range" min="0" max="100" value="${val}" id="slider${i}" oninput="updateSlider(${i})" style="background:linear-gradient(to right, var(${sl[1]}) ${val}%, var(--border) ${val}%)"></div>`;
+    });
+    sh += '</div></div>';
+    res.innerHTML += sh;
+
+    // Metrics grid for selected scenario
+    res.innerHTML += `<div class="metrics-grid" id="s3-metrics"></div>`;
+    updateMetrics();
+
+    completeStage(3);
+    addProceedBtn();
+  }
+}
+
+function renderScenarioCards() {
+  const scenarios = SCENARIOS[state.siteId];
+  const el = document.getElementById('scenario-cards');
+  if (!el) return;
+  el.innerHTML = ['A','B','C'].map(key => {
+    const sc = scenarios[key];
+    const isSel = selectedScenario === key;
+    const borderColor = isSel ? (key==='B'?'var(--green)':key==='A'?'var(--amber)':'var(--teal)') : 'var(--border)';
+    const bg = isSel ? (key==='B'?'var(--greenDim)':key==='A'?'var(--amberDim)':'var(--tealDim)') : 'var(--surface)';
+    return `<div onclick="selectScenario('${key}')" style="background:${bg};border:2px solid ${borderColor};border-radius:6px;padding:10px 12px;cursor:pointer;transition:all 0.2s">
+      <div style="font-family:var(--mono);font-size:8px;letter-spacing:0.1em;color:${borderColor};margin-bottom:4px">${isSel?'✓ ':' '}SCENARIO ${key}</div>
+      <div style="font-family:var(--serif);font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">${sc.name}</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--textMid);line-height:1.5;margin-bottom:6px">${sc.desc}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--textMid)">
+        <div>Area: <span style="color:var(--text);font-weight:500">${sc.area} km\u00B2</span></div>
+        <div>Seamounts: <span style="color:var(--text);font-weight:500">${sc.seamounts} (${sc.smNames})</span></div>
+        <div>Biodiversity: <span style="color:var(--green);font-weight:500">${sc.biodiversity}</span></div>
+        <div>Fishing impact: <span style="color:var(--rose);font-weight:500">${sc.fishImpact}</span></div>
+        <div>Enforcement: <span style="color:var(--text);font-weight:500">${sc.enforcement}</span></div>
+        <div>Blue Bond: <span style="color:${sc.blueBond.includes('Ineligible')?'var(--rose)':'var(--green)'};font-weight:500">${sc.blueBond}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectScenario(key) {
+  selectedScenario = key;
+  renderScenarioCards();
+  drawHexGrid(key, true);
+  updateMetrics();
+}
+
+function updateSlider(i) {
+  const v = document.getElementById('slider'+i).value;
+  document.getElementById('sv'+i).textContent = v+'%';
+  const colors = {mpa:['--teal','--amber','--green'],researcher:['--violet','--teal','--amber'],fisher:['--amber','--green','--teal'],industry:['--blue','--amber','--green']};
+  const c = (colors[state.persona]||colors.mpa)[i];
+  document.getElementById('slider'+i).style.background = `linear-gradient(to right, var(${c}) ${v}%, var(--border) ${v}%)`;
+
+  // Slider values influence which scenario is recommended
+  const s0 = parseInt(document.getElementById('slider0').value);
+  const s1 = parseInt(document.getElementById('slider1').value);
+  // High conservation priority + low economic weight = recommend C
+  // Low conservation + high economic = recommend A
+  // Balanced = recommend B
+  const conservationBias = s0 - s1;
+  if (conservationBias > 25) selectScenario('C');
+  else if (conservationBias < -15) selectScenario('A');
+  else selectScenario('B');
+}
+
+function updateMetrics() {
+  const sc = SCENARIOS[state.siteId][selectedScenario];
+  const personaMetrics = {
+    mpa: [[sc.area+' km\u00B2','Protected Area','--teal'],[sc.biodiversity,'Biodiversity Coverage','--green'],[sc.fishImpact,'Fishing Displacement','--rose'],[sc.blueBond,'Blue Bond Rating','--amber']],
+    researcher: [[sc.biodiversity,'Species Coverage','--violet'],[sc.seamounts+' mapped','Seamount Coverage','--teal'],[sc.area+' km\u00B2','Study Area','--green'],[(selectedScenario==='C'?'High':'Moderate'),'Research Priority','--amber']],
+    fisher: [[sc.fishImpact,'Grounds Affected','--rose'],['+'+(selectedScenario==='A'?'8':selectedScenario==='B'?'18':'24')+'% CPUE','Spillover (5yr)','--green'],[(100+parseInt(sc.fishImpact))+'%','Access Retained','--amber'],[(selectedScenario==='A'?'2':selectedScenario==='B'?'4':'4'),'Co-mgmt Seats','--teal']],
+    industry: [['$'+(selectedScenario==='A'?'6.1':selectedScenario==='B'?'12.3':'15.8')+'M/yr','Tourism Revenue','--blue'],[(selectedScenario==='A'?'None':selectedScenario==='B'?'1 route, 12nm':'2 routes'),'Shipping Diversion','--amber'],[(selectedScenario==='A'?'B':'A'+(selectedScenario==='C'?'':'-')),'Eco Rating','--green'],[sc.enforcement,'Enforcement Cost','--teal']],
+  };
+  const m = personaMetrics[state.persona] || personaMetrics.mpa;
+  const el = document.getElementById('s3-metrics');
+  if (el) el.innerHTML = m.map(r => `<div class="metric-card"><div class="metric-val" style="color:var(${r[2]})">${r[0]}</div><div class="metric-label">${r[1]}</div></div>`).join('');
+}
+
+function drawHexGrid(scenarioKey, active) {
+  const svg = document.getElementById('hex-svg');
+  if (!svg) return;
+  const s = S(), rows=7, cols=11, sz=24, hH=sz*Math.sqrt(3);
+  const threshold = SCENARIOS[state.siteId][scenarioKey||'B'].hexThreshold;
+  const obis = OBIS_GRID[state.siteId];
+  let html = '';
+  const pColor = state.persona==='fisher'?'235,185,99':state.persona==='industry'?'99,179,237':state.persona==='researcher'?'167,139,250':'79,209,197';
+
+  // Map grid columns/rows to approximate lng/lat ranges for the site
+  const site = state.siteId === 'vtr' 
+    ? {lngMin:-40, lngMax:-28, latMin:-22, latMax:-18}
+    : {lngMin:-35, lngMax:-30, latMin:-5, latMax:-2};
+
+  for (let r=0;r<rows;r++) for (let c=0;c<cols;c++) {
+    const x=c*sz*1.5+(r%2?sz*0.75:0)+24, y=r*hH*0.5+16;
+
+    // Map grid position to lat/lng
+    const cellLng = site.lngMin + (c / (cols-1)) * (site.lngMax - site.lngMin);
+    const cellLat = site.latMax - (r / (rows-1)) * (site.latMax - site.latMin);
+
+    // Find nearest OBIS cell and calculate score based on real data
+    let obisScore = 0;
+    for (const cell of obis.cells) {
+      const dist = Math.sqrt(Math.pow(cellLat - cell.lat, 2) + Math.pow(cellLng - cell.lng, 2));
+      if (dist < 1.5) {  // within ~1.5 degrees influence radius
+        obisScore = Math.max(obisScore, (cell.count / obis.maxCount) * (1 - dist/2));
+      }
+    }
+
+    const prot = obisScore > threshold || (obisScore > 0.05 && Math.sin(r*s.hexSeed+c*0.5)*0.5+0.5 > threshold);
+    const fish = (c+r)%3===0 && !prot && obisScore < 0.1;
+    const oil = c>=8 && r>=2 && r<=5;
+    const isGap = obisScore < 0.02; // True data gap — no OBIS records nearby
+
+    let fill='rgba(216,222,233,0.03)', stroke='rgba(216,222,233,0.06)';
+    if (active) {
+      if (prot && obisScore > 0.1) {
+        // High-confidence protection cell — real data supports it
+        fill=`rgba(${pColor},${(0.15+obisScore*0.5).toFixed(2)})`; stroke=P().color;
+      } else if (prot) {
+        // Lower confidence — scenario includes it but less data
+        fill=`rgba(${pColor},${(0.08+obisScore*0.3).toFixed(2)})`; stroke=P().color+'88';
+      } else if (isGap && (state.persona==='mpa'||state.persona==='researcher')) {
+        // Data gap cell — subtle red tint to show unsampled area
+        fill='rgba(232,114,114,0.06)'; stroke='rgba(232,114,114,0.15)';
+      } else if (oil&&(state.persona==='mpa'||state.persona==='industry')) {
+        fill='rgba(235,185,99,0.18)'; stroke='rgba(235,185,99,0.4)';
+      } else if (fish&&(state.persona==='mpa'||state.persona==='fisher')) {
+        fill='rgba(232,114,114,0.1)'; stroke='rgba(232,114,114,0.25)';
+      } else {
+        stroke='rgba(216,222,233,0.08)';
+      }
+    }
+    const pts=Array.from({length:6},(_,i)=>{const a=(Math.PI/3)*i+Math.PI/6;return`${x+sz*0.4*Math.cos(a)},${y+sz*0.4*Math.sin(a)}`;}).join(' ');
+    html+=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="0.7"/>`;
+  }
+  // Add legend below SVG (not inside it)
+  if (active) {
+    let legendEl = document.getElementById('hex-legend');
+    if (!legendEl) {
+      const container = svg.parentElement;
+      legendEl = document.createElement('div');
+      legendEl.id = 'hex-legend';
+      legendEl.style.cssText = 'font-family:var(--mono);font-size:9px;color:var(--textFaint);margin-top:6px;line-height:1.5';
+      container.appendChild(legendEl);
+    }
+    legendEl.innerHTML = `Data: <a href="https://obis.org" target="_blank" style="color:var(--teal);text-decoration:underline">OBIS</a> — ${obis.total.toLocaleString()} occurrence records | ${obis.cells.length} cells with data | <span style="color:${P().color}">■</span> High density <span style="color:${P().color}88">■</span> Moderate <span style="color:rgba(232,114,114,0.5)">■</span> Data gap`;
+  }
+  svg.innerHTML = html;
+}
+
+function renderStage4() {
+  const body = document.getElementById('stage-body');
+  body.innerHTML = `<button class="action-btn" style="background:${STAGE_COLORS[4]}" onclick="runStage4()">▸ GENERATE REPORT</button><div id="s4-results"></div>`;
+}
+
+function runStage4() {
+  const p = P(), s = S();
+  const capital = s.capital[state.persona];
+  const res = document.getElementById('s4-results');
+  document.querySelector('#stage-body .action-btn').classList.add('hidden');
+  const titles = {mpa:["PROPOSED MPA COORDINATES","NATURAL CAPITAL & BLUE FINANCE","ENFORCEMENT & MONITORING"],researcher:["ANALYSIS SUMMARY","KEY FINDINGS & METRICS","DATA MANAGEMENT & GRANT SUPPORT"],fisher:["FISHING GROUND CHANGES","COMMUNITY BENEFITS FORECAST","CO-MANAGEMENT RECOMMENDATIONS"],industry:["OPERATIONAL ZONE CHANGES","REVENUE & OPPORTUNITY METRICS","SUSTAINABILITY ROADMAP"]};
+  const t = titles[state.persona];
+  const colors = [STAGE_COLORS[1], STAGE_COLORS[2], STAGE_COLORS[4]];
+  const enfText = {mpa:`ODP → GFW vessel data → AI anomaly detection → Navy/ICMBio alerts<br><span style="color:var(--green);font-weight:600">IUU detection: ${s.enforcement.detection}</span>`,
+    researcher:`ODP Jupyter workspace with reproducible analysis notebooks<br>Data management plan template for NSF/FAPESP/EU Horizon proposals<br><span style="color:var(--violet);font-weight:600">Pipeline ready for grant proposal Appendix B</span>`,
+    fisher:`4 seats on MPA co-management advisory council<br>Seasonal access calendar with buffer zone fishing rights<br><span style="color:var(--amber);font-weight:600">Eco-tourism guide training: +$890/month alternative income</span>`,
+    industry:`Blue Flag eco-certification pathway (12-month timeline)<br>Visitor management system with real-time capacity tracking<br><span style="color:var(--blue);font-weight:600">Sustainable certification premium: +22-35% revenue</span>`};
+
+  let step = 0;
+  const iv = setInterval(() => {
+    step++;
+    if (step === 1) {
+      res.innerHTML += `<div class="report-section" style="border:1px solid ${colors[0]}33">
+        <div class="report-tag" style="color:${colors[0]}">1. ${t[0]}</div>
+        <div class="report-text" style="color:var(--text)">
+          <div style="font-weight:600">${s.name}</div>
+          <div style="color:var(--textMid)">SW: ${s.mpaPolygon[0][0]}°, ${s.mpaPolygon[0][1]}° → NE: ${s.mpaPolygon[2][0]}°, ${s.mpaPolygon[2][1]}°</div>
+          <div style="color:var(--textMid)">Area: ${s.area} km²</div>
+          <div style="color:${colors[0]};margin-top:4px;font-weight:600">${s.protBefore} → ${s.protAfter} Brazilian waters protected</div>
+        </div>
+        <div style="margin-top:8px"><div id="map-s4" style="height:180px;border-radius:6px"></div></div>
+      </div>`;
+      setTimeout(() => initMap('map-s4', s, P()), 100);
+    } else if (step === 2) {
+      res.innerHTML += `<div class="report-section" style="border:1px solid ${colors[1]}33">
+        <div class="report-tag" style="color:${colors[1]}">2. ${t[1]}</div>
+        <div class="metrics-grid" style="grid-template-columns:1fr 1fr">${capital.map(c => `<div class="metric-card"><div class="metric-val" style="color:${colors[1]}">${c.v}</div><div class="metric-label">${c.m}</div><div class="metric-note">${c.n}</div></div>`).join('')}</div>
+      </div>`;
+    } else if (step === 3) {
+      clearInterval(iv);
+      res.innerHTML += `<div class="report-section" style="border:1px solid ${colors[2]}33">
+        <div class="report-tag" style="color:${colors[2]}">3. ${t[2]}</div>
+        <div class="report-text" style="color:var(--textMid)">${enfText[state.persona]}</div>
+      </div>
+      <div class="complete-banner" style="background:${p.color}0A;border:1px solid ${p.color}22">
+        <div class="complete-title" style="color:${p.color}">✓ REPORT COMPLETE — ${s.shortName.toUpperCase()} — ${p.label.toUpperCase()}</div>
+        <div class="complete-sub">Auditable • FAIR-compliant • Reproducible on ODP</div>
+      </div>`;
+      completeStage(4);
+    }
+  }, 900);
+}
+
+function addProceedBtn() {
+  const n = state.activeStage;
+  if (n >= 4) return;
+  const body = document.getElementById('stage-body');
+  body.innerHTML += `<button class="proceed-btn" style="color:${STAGE_COLORS[n+1]};border:1px solid ${STAGE_COLORS[n+1]}" onclick="setStage(${n+1})">PROCEED TO STAGE ${n+1} →</button>`;
+}
+
+/* ═══════════════════════════════════════════
+   MAP
+   ═══════════════════════════════════════════ */
+function initMap(containerId, site, persona) {
+  const el = document.getElementById(containerId);
+  if (!el || !L) return;
+  const map = L.map(el, {zoomControl:false}).setView([site.lat, site.lng], site.zoom);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {attribution:'CartoDB', maxZoom:18}).addTo(map);
+  const mpaColor = state.persona==='fisher'?'#EBB963':state.persona==='industry'?'#63B3ED':'#4FD1C5';
+  L.polygon(site.mpaPolygon, {color:mpaColor, fillColor:mpaColor, fillOpacity:0.12, weight:1.5, dashArray:'6 4'}).addTo(map);
+  L.polygon(site.existingMPA, {color:'#68D391', fillColor:'#68D391', fillOpacity:0.2, weight:1.5}).addTo(map);
+  site.seamounts.forEach(sm => {
+    L.circleMarker([sm.lat, sm.lng], {radius:5, color:'#4FD1C5', fillColor:'#4FD1C5', fillOpacity:0.7, weight:1}).addTo(map).bindPopup('<b>'+sm.name+'</b>');
+  });
+}
+
+/* ═══════════════════════════════════════════
+   REPORT
+   ═══════════════════════════════════════════ */
+function showReport() { document.getElementById('report-overlay').classList.remove('hidden'); buildReport(); }
+function hideReport() { document.getElementById('report-overlay').classList.add('hidden'); }
+function printReport() { window.print(); }
+
+function getReportData() {
+  const p = P(), s = S();
+  const capital = s.capital[state.persona];
+  const gap = ODP_GAP_ANALYSIS[state.siteId];
+  const titles = {mpa:["Proposed MPA Designation","Natural Capital & Blue Finance","Enforcement & Monitoring"],researcher:["Research Site Profile","Key Findings & Metrics","Data Management & Grant Support"],fisher:["Fishing Ground Assessment","Community Benefits Forecast","Co-Management Framework"],industry:["Operational Zone Assessment","Revenue & Opportunity Metrics","Sustainability Roadmap"]};
+  const t = titles[state.persona];
+  const enfText = {mpa:`Real-time enforcement pipeline: ODP data ingestion, GFW vessel tracking (AIS + SAR), AI anomaly detection, automated alerts to Brazilian Navy and ICMBio. Estimated IUU detection rate: ${s.enforcement.detection}. ${s.enforcement.desc}`,researcher:"Reproducible analysis pipeline deployed on ODP Jupyter workspaces. All data layers FAIR-compliant with DOI-referenced provenance. Data management plan template aligned with NSF, FAPESP, and EU Horizon proposal requirements. Analysis notebooks exportable for peer review.",fisher:"Four co-management advisory council seats allocated to fishing cooperative representatives. Seasonal access calendar with buffer zone fishing rights preserved. Eco-tourism guide training program available as alternative livelihood pathway, estimated at +$890/month supplemental income per participant.",industry:"Blue Flag eco-certification pathway with 12-month implementation timeline. Real-time visitor capacity management system. Sustainable certification premium estimated at +22-35% revenue for participating operators."};
+
+  // Build ODP data inventory for the report
+  const personaLayers = {
+    mpa: [{cat:"mpa",label:"Protection Status & MPA Boundaries"},{cat:"bathymetry",label:"Bathymetry & Geomorphology"},{cat:"shipping",label:"Shipping & Vessel Traffic"},{cat:"species",label:"Species & Biodiversity"},{cat:"fishing",label:"Fishing Activity & Effort"},{cat:"habitat",label:"Benthic Habitat & Coral Mapping"}],
+    researcher: [{cat:"species",label:"Species Occurrence & Biodiversity"},{cat:"bathymetry",label:"Bathymetry & Seamount Mapping"},{cat:"oceanographic",label:"Oceanographic Parameters"},{cat:"habitat",label:"Coral Reef & Habitat Mapping"},{cat:"mpa",label:"Existing Protection Boundaries"}],
+    fisher: [{cat:"fishing",label:"Fishing Activity & Commercial Species"},{cat:"species",label:"Marine Fauna"},{cat:"habitat",label:"Spawning & Nursery Habitat"},{cat:"mpa",label:"MPA Boundaries & Exclusion Zones"}],
+    industry: [{cat:"shipping",label:"Vessel Traffic & Infrastructure"},{cat:"mpa",label:"Protected Area & Heritage Boundaries"},{cat:"bathymetry",label:"Seafloor Mapping"},{cat:"habitat",label:"Reef Extent & Dive Sites"}],
+  };
+  const layersForReport = (personaLayers[state.persona]||personaLayers.mpa).map(l => {
+    const ds = ODP_DATASETS[l.cat]||[];
+    return {label:l.label, datasets:ds, count:ds.length};
+  });
+  const totalDatasets = layersForReport.reduce((a,l)=>a+l.count,0);
+
+  // Slider values
+  const sv = [parseInt(document.getElementById('slider0')?.value||50),parseInt(document.getElementById('slider1')?.value||30),parseInt(document.getElementById('slider2')?.value||20)];
+
+  return {p, s, capital, gap, t, enfText: enfText[state.persona], layersForReport, totalDatasets, sv};
+}
+
+function generateReportHTML() {
+  const {p, s, capital, gap, t, enfText, layersForReport, totalDatasets, sv} = getReportData();
+  const bbox = state.siteId==='vtr'?'[-40, -22, -28, -18]':'[-35, -5, -30, -2]';
+
+  // Shared CSS
+  const css = `@page { margin: 20mm 18mm; size: A4; }
+@media print { .no-print { display:none !important; } .page-break { page-break-before:always; } body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+body { font-family:Georgia,'Times New Roman',serif; max-width:720px; margin:0 auto; padding:60px 32px 40px 32px; color:#1a1a1a; font-size:13px; line-height:1.65; }
+h1 { font-size:22px; margin:0 0 2px; color:#1a1a1a; }
+h2 { font-size:14px; font-weight:700; margin:22px 0 8px; padding-bottom:4px; border-bottom:1px solid #e0e0e0; color:#2D3748; }
+h3 { font-size:12px; font-weight:600; margin:14px 0 6px; color:#4A5568; }
+hr { border:none; border-top:2.5px solid #2D7A74; margin:16px 0; }
+table { width:100%; border-collapse:collapse; font-size:11.5px; margin:8px 0; }
+td,th { padding:4px 8px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+th { font-weight:600; border-bottom:2px solid #cbd5e0; color:#4A5568; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; }
+.tag { font-family:'Courier New',monospace; font-size:9px; letter-spacing:0.18em; color:#2D7A74; font-weight:600; margin-bottom:6px; }
+.meta { text-align:right; font-family:'Courier New',monospace; font-size:9px; color:#A0AEC0; line-height:1.7; }
+.mg { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:10px 0; }
+.mc { border:1px solid #e2e8f0; border-radius:6px; padding:10px 14px; background:#f7fafc; }
+.mv { font-size:18px; font-weight:700; color:#2D7A74; }
+.ml { font-size:10px; font-weight:600; margin-top:2px; color:#2D3748; }
+.mn { font-size:9px; color:#A0AEC0; margin-top:1px; }
+.rec-box { background:#EBF8FF; border:1px solid #BEE3F8; border-radius:6px; padding:12px 16px; margin:12px 0; }
+.rec-title { font-family:'Courier New',monospace; font-size:9px; font-weight:600; color:#2B6CB0; letter-spacing:0.08em; margin-bottom:6px; }
+.scenario-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:10px 0; }
+.scenario { border:1px solid #e2e8f0; border-radius:6px; padding:10px; text-align:center; }
+.scenario.recommended { border-color:#2D7A74; background:#F0FFF4; }
+.scenario-name { font-size:11px; font-weight:700; margin-bottom:6px; }
+.scenario-stat { font-family:'Courier New',monospace; font-size:10px; color:#4A5568; margin:2px 0; }
+.confidence { display:inline-block; padding:2px 8px; border-radius:3px; font-family:'Courier New',monospace; font-size:9px; font-weight:600; }
+.conf-high { background:#C6F6D5; color:#276749; }
+.conf-mod { background:#FEFCBF; color:#975A16; }
+.conf-low { background:#FED7D7; color:#9B2C2C; }
+.ds-row { padding:3px 0; border-bottom:1px solid #f0f0f0; font-size:10.5px; }
+.ds-title { color:#2D3748; }
+.ds-meta { font-family:'Courier New',monospace; font-size:9px; color:#A0AEC0; }
+.gap-box { background:#fff5f5; border:1px solid #fed7d7; border-radius:6px; padding:10px 14px; margin:10px 0; }
+.gap-title { font-family:'Courier New',monospace; font-size:9px; font-weight:600; color:#C53030; letter-spacing:0.08em; margin-bottom:4px; }
+.gap-item { font-size:11px; color:#742A2A; margin:2px 0; }
+.completeness { background:#f0fff4; border:1px solid #c6f6d5; border-radius:6px; padding:10px 14px; margin:12px 0; }
+.completeness-bar { height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden; margin:6px 0; }
+.community-section { background:#FFFFF0; border:1px solid #FEFCBF; border-radius:6px; padding:14px 16px; margin:10px 0; }
+.community-title { font-size:14px; font-weight:700; color:#975A16; margin-bottom:6px; }
+.community-item { font-size:12px; color:#4A5568; margin:4px 0; line-height:1.6; }
+.biz-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:11.5px; }
+.footer { margin-top:28px; padding-top:10px; border-top:1px solid #e2e8f0; font-family:'Courier New',monospace; font-size:8px; color:#CBD5E0; text-align:center; line-height:1.6; }
+.print-bar { position:fixed; top:0; left:0; right:0; background:#2D3748; padding:10px 24px; display:flex; gap:12px; justify-content:center; z-index:999; }
+.print-bar button { font-family:'Courier New',monospace; font-size:11px; padding:6px 18px; border:none; border-radius:4px; cursor:pointer; font-weight:600; }
+.btn-print { background:#4FD1C5; color:#1a202c; }
+.btn-close { background:transparent; color:#A0AEC0; border:1px solid #4A5568 !important; }
+#map-report { height:200px; border-radius:6px; border:1px solid #e2e8f0; margin:8px 0; }`;
+
+  // Shared page 1: Site profile with map
+  const page1 = `
+<div style="display:flex;justify-content:space-between;align-items:flex-start">
+  <div>
+    <div class="tag">OCEAN SENSITIVE AREAS REPORT</div>
+    <h1>${s.name}</h1>
+    <div style="font-size:12px;color:#718096;margin-top:4px">${p.label} Analysis | Agentic MSP Console v2</div>
+  </div>
+  <div class="meta">
+    <div>March 2026</div>
+    <div>Julian Ford Hill</div>
+    <div>HUB Ocean Foundation</div>
+    <div style="margin-top:4px;color:#2D7A74">ODP Live Data</div>
+  </div>
+</div>
+<hr>
+
+<table><tbody>
+${[['Site',s.name],['Description',s.desc],['Bounding Box',bbox],['Key Features',s.seamounts.map(x=>x.name).join(', ')],['Total Area',s.area+' km\u00B2']].map(r=>`<tr><td style="font-weight:600;color:#2D3748;width:150px">${r[0]}</td><td style="color:#4A5568">${r[1]}</td></tr>`).join('')}
+</tbody></table>
+<div id="map-report"></div>`;
+
+  // Persona-specific pages 2-3
+  let personaPages = '';
+
+  if (state.persona === 'mpa') {
+    // MPA DIRECTOR: Decision Brief with scenarios + confidence assessment
+    personaPages = `
+<div class="rec-box">
+  <div class="rec-title">EXECUTIVE RECOMMENDATION</div>
+  <p style="font-size:12px;color:#2D3748;line-height:1.7;margin:0">Based on analysis of ${totalDatasets} datasets from the Ocean Data Platform covering species occurrence, fishing activity, shipping traffic, and existing protection boundaries, <strong>we recommend Scenario B (Balanced Approach)</strong> for ${s.name}. This option protects ${Math.round(parseInt(s.area.replace(',',''))*0.7).toLocaleString()} km\u00B2 including ${s.seamounts.length} critical seamounts while preserving an estimated 92% of current artisanal fishing access and qualifying for Blue Bond financing under IFC Performance Standards. Protection impact: ${s.protBefore} \u2192 ${s.protAfter} of Brazilian waters.</p>
+</div>
+
+<h2>Designation Scenarios</h2>
+<div class="scenario-grid">
+  <div class="scenario">
+    <div class="scenario-name" style="color:#718096">A. Minimum Viable</div>
+    <div class="scenario-stat">Area: ${Math.round(parseInt(s.area.replace(',',''))*0.4).toLocaleString()} km\u00B2</div>
+    <div class="scenario-stat">Seamounts: ${Math.max(2,s.seamounts.length-3)}</div>
+    <div class="scenario-stat">Fishing impact: -3%</div>
+    <div class="scenario-stat">Enforcement: $1.2M/yr</div>
+    <div class="scenario-stat" style="color:#C53030">Blue Bond: Ineligible</div>
+  </div>
+  <div class="scenario recommended">
+    <div class="scenario-name" style="color:#276749">\u2713 B. Balanced (Recommended)</div>
+    <div class="scenario-stat">Area: ${Math.round(parseInt(s.area.replace(',',''))*0.7).toLocaleString()} km\u00B2</div>
+    <div class="scenario-stat">Seamounts: ${s.seamounts.length}</div>
+    <div class="scenario-stat">Fishing impact: -8%</div>
+    <div class="scenario-stat">Enforcement: $2.1M/yr</div>
+    <div class="scenario-stat" style="color:#276749">Blue Bond: A- Rating</div>
+  </div>
+  <div class="scenario">
+    <div class="scenario-name" style="color:#718096">C. Maximum Conservation</div>
+    <div class="scenario-stat">Area: ${s.area} km\u00B2</div>
+    <div class="scenario-stat">Seamounts: ${s.seamounts.length} + buffer</div>
+    <div class="scenario-stat">Fishing impact: -19%</div>
+    <div class="scenario-stat">Enforcement: $3.4M/yr</div>
+    <div class="scenario-stat" style="color:#276749">Blue Bond: A Rating</div>
+  </div>
+</div>
+
+<h2>Natural Capital Balance Sheet</h2>
+<div class="mg">${capital.map(c=>`<div class="mc"><div class="mv">${c.v}</div><div class="ml">${c.m}</div><div class="mn">${c.n}</div></div>`).join('')}</div>
+
+<h2>Confidence Assessment</h2>
+<table>
+<thead><tr><th>Data Layer</th><th>Confidence</th><th>Basis</th></tr></thead>
+<tbody>
+<tr><td>Bathymetry & Seamount Mapping</td><td><span class="confidence conf-high">HIGH</span></td><td>GEBCO 30-arc-second + Pangaea seamount catalog (37,889 features)</td></tr>
+<tr><td>Protection Boundaries</td><td><span class="confidence conf-high">HIGH</span></td><td>ProtectedSeas Navigator (19,727 polygons) + ICMBio designations</td></tr>
+<tr><td>Shipping & Vessel Traffic</td><td><span class="confidence conf-high">HIGH</span></td><td>Global Fishing Watch + HUB Ocean vessel density (1.4M+ detections)</td></tr>
+<tr><td>Species & Biodiversity</td><td><span class="confidence conf-mod">MODERATE</span></td><td>PGS mammal/turtle observations + whale strike risk. Limited to mobile fauna.</td></tr>
+<tr><td>Fishing Activity</td><td><span class="confidence conf-mod">MODERATE</span></td><td>WWF commercial species by EEZ. No artisanal effort data on ODP.</td></tr>
+<tr><td>Benthic Habitat & Carbon</td><td><span class="confidence conf-low">LOW</span></td><td>Amazon reef features only. No site-specific benthic survey for VT Ridge or FdN.</td></tr>
+</tbody></table>
+<p style="font-size:10.5px;color:#718096;margin-top:6px">Recommendation: Proceed with designation using current data. Commission site-specific benthic surveys through OceanPact partnership to strengthen Blue Bond eligibility within 12 months.</p>
+
+<h2>Enforcement Plan</h2>
+<p style="color:#4A5568">${enfText}</p>
+
+<p style="font-size:10.5px;color:#C53030;margin-top:12px;font-weight:600">Political context: Brazil's general election (October 4, 2026) creates a window for designation under the current administration's 30x30 commitment.</p>`;
+
+  } else if (state.persona === 'researcher') {
+    // RESEARCHER: Data Management Plan appendix
+    personaPages = `
+<h2>Data Management Plan</h2>
+<p style="font-size:11.5px;color:#718096;margin-bottom:8px">This section is formatted for direct inclusion as a Data Management Plan appendix in NSF, FAPESP, or EU Horizon grant proposals. All datasets listed are currently available on the Ocean Data Platform.</p>
+
+<h3>Data Infrastructure</h3>
+<table><tbody>
+<tr><td style="font-weight:600;width:170px">Platform</td><td>HUB Ocean \u2014 Ocean Data Platform (ODP)</td></tr>
+<tr><td style="font-weight:600">Access</td><td>Open access (free tier). STAC-compliant API for programmatic access.</td></tr>
+<tr><td style="font-weight:600">Compute</td><td>ODP Jupyter Workspaces with cloud-based analysis environment</td></tr>
+<tr><td style="font-weight:600">Standards</td><td>FAIR Principles. Darwin Core for biodiversity. CF Conventions for oceanographic.</td></tr>
+<tr><td style="font-weight:600">Licensing</td><td>CC-BY 4.0 and CC-BY-NC 4.0 (see individual datasets below)</td></tr>
+</tbody></table>
+
+<h3>Available Datasets (${totalDatasets} identified)</h3>
+<table>
+<thead><tr><th>Dataset</th><th>Provider</th><th>Records</th><th>License</th></tr></thead>
+<tbody>
+${layersForReport.flatMap(layer => layer.datasets).map(d => `<tr><td>${d.title}</td><td style="color:#718096">${d.provider}</td><td style="font-family:'Courier New',monospace;font-size:10px">${d.rows?d.rows.toLocaleString():'\u2014'}</td><td style="font-family:'Courier New',monospace;font-size:10px">${d.license||'\u2014'}</td></tr>`).join('')}
+</tbody></table>
+
+<h3>Data Readiness Assessment</h3>
+<div class="completeness">
+  <div style="font-family:'Courier New',monospace;font-size:9px;font-weight:600;color:#276749;letter-spacing:0.08em;margin-bottom:4px">COMPLETENESS SCORE</div>
+  <div class="completeness-bar">
+    <div style="height:100%;width:${Math.round(totalDatasets/(totalDatasets+gap.keyGaps.length)*100)}%;background:#48BB78;border-radius:4px"></div>
+  </div>
+  <div style="font-size:10px;color:#4A5568">${totalDatasets} datasets available | ${gap.keyGaps.length} gaps requiring fieldwork or partnership</div>
+</div>
+
+<h3>Data Gaps Requiring Fieldwork (Years 1\u20132)</h3>
+<div class="gap-box">
+${gap.keyGaps.map(g => `<div class="gap-item">\u2022 ${g}</div>`).join('')}
+</div>
+
+<h3>Data Deposit Plan</h3>
+<p style="font-size:11.5px;color:#4A5568">All data products generated by this project will be deposited to the Ocean Data Platform in FAIR-compliant formats within 6 months of collection. Biodiversity data will follow Darwin Core standards. Oceanographic data will follow CF Conventions. All outputs will receive DOIs through ODP's metadata catalog and will be discoverable via the STAC API.</p>
+
+<h2>Key Findings</h2>
+<div class="mg">${capital.map(c=>`<div class="mc"><div class="mv">${c.v}</div><div class="ml">${c.m}</div><div class="mn">${c.n}</div></div>`).join('')}</div>
+
+<h3>Priority Partners for Data Collection</h3>
+<table>
+<thead><tr><th>Institution</th><th>Data Contribution</th></tr></thead>
+<tbody>${gap.toOnboard.map(t => `<tr><td style="font-weight:600;color:#2D7A74">${t.inst}</td><td style="color:#4A5568">${t.data}</td></tr>`).join('')}</tbody>
+</table>`;
+
+  } else if (state.persona === 'fisher') {
+    // FISHER: Plain-language community impact summary
+    personaPages = `
+<h2 style="border-bottom-color:#EBB963">What This Means for Your Fishing Grounds</h2>
+
+<div class="community-section">
+  <div class="community-title" style="color:#276749">\u2713 What Stays the Same</div>
+  <div class="community-item"><strong>92% of current fishing grounds</strong> remain fully accessible year-round.</div>
+  <div class="community-item">All artisanal fishing within the <strong>coastal buffer zone</strong> (0\u201312 nautical miles) continues as normal.</div>
+  <div class="community-item">Existing fishing permits and cooperative agreements are not affected.</div>
+  <div class="community-item">Traditional pelagic species (tuna, mahi-mahi, wahoo) remain available in adjacent waters.</div>
+</div>
+
+<div class="community-section" style="background:#FFF5F5;border-color:#FED7D7">
+  <div class="community-title" style="color:#C53030">What Changes</div>
+  <div class="community-item"><strong>8% of current grounds</strong> become restricted zones around seamount summits.</div>
+  <div class="community-item">Bottom trawling and longlining are prohibited within the MPA core zone.</div>
+  <div class="community-item">Seasonal closures (November\u2013February) apply near ${s.seamounts.slice(0,3).map(x=>x.name).join(', ')} for spawning protection.</div>
+  <div class="community-item">All changes are phased in over <strong>18 months</strong> with advance notice.</div>
+</div>
+
+<div class="community-section" style="background:#F0FFF4;border-color:#C6F6D5">
+  <div class="community-title" style="color:#276749">What You Gain</div>
+  <div class="community-item"><strong>Fish stocks recover.</strong> Based on similar MPAs worldwide, catch per unit effort in waters adjacent to the protected area is expected to increase by 18% within 5 years as fish populations rebuild and spill over into fishing grounds.</div>
+  <div class="community-item"><strong>Spawning areas protected.</strong> 6 commercially important species have nursery habitat inside the proposed MPA. Protecting these areas means more juvenile fish reaching maturity.</div>
+  <div class="community-item"><strong>Your voice in management.</strong> 4 seats on the MPA co-management advisory council are reserved for fishing cooperative representatives. You help set the rules.</div>
+  <div class="community-item"><strong>Alternative income.</strong> Eco-tourism guide training program available for cooperative members. Estimated supplemental income: +$890/month per participant for dive and wildlife watching excursions.</div>
+</div>
+
+<h2 style="border-bottom-color:#EBB963">By the Numbers</h2>
+<div class="mg">${capital.map(c=>`<div class="mc"><div class="mv">${c.v}</div><div class="ml">${c.m}</div><div class="mn">${c.n}</div></div>`).join('')}</div>
+
+<h2 style="border-bottom-color:#EBB963">Seasonal Access Calendar</h2>
+<table>
+<thead><tr><th>Season</th><th>Core Zone</th><th>Buffer Zone</th><th>Open Waters</th></tr></thead>
+<tbody>
+<tr><td style="font-weight:600">Mar \u2013 Jun</td><td style="color:#276749">Restricted (no-take)</td><td style="color:#276749">Open \u2014 all gear types</td><td style="color:#276749">Open \u2014 all gear types</td></tr>
+<tr><td style="font-weight:600">Jul \u2013 Oct</td><td style="color:#276749">Restricted (no-take)</td><td style="color:#276749">Open \u2014 all gear types</td><td style="color:#276749">Open \u2014 all gear types</td></tr>
+<tr><td style="font-weight:600">Nov \u2013 Feb</td><td style="color:#C53030">Closed (spawning)</td><td style="color:#975A16">Line fishing only</td><td style="color:#276749">Open \u2014 all gear types</td></tr>
+</tbody></table>
+<p style="font-size:10px;color:#718096;margin-top:6px">Calendar is illustrative and subject to ICMBio co-management council review. Final schedule determined with community input.</p>
+
+<h2 style="border-bottom-color:#EBB963">Where to Get More Information</h2>
+<p style="font-size:12px;color:#4A5568;line-height:1.7">Contact your fishing cooperative leader for meeting dates. ICMBio community liaison office: [to be assigned]. Co-management council nominations open within 90 days of MPA designation.</p>`;
+
+  } else if (state.persona === 'industry') {
+    // INDUSTRY: Compliance & opportunity brief
+    personaPages = `
+<h2>Operational Impact Summary</h2>
+<div class="rec-box" style="background:#FFFFF0;border-color:#FEFCBF">
+  <div class="rec-title" style="color:#975A16">BOTTOM LINE</div>
+  <p style="font-size:12px;color:#2D3748;line-height:1.7;margin:0">The proposed MPA at ${s.name} creates <strong>minimal disruption</strong> to current maritime and tourism operations while unlocking significant revenue opportunities through eco-certification and premium sustainable tourism products. One shipping route requires a 12nm diversion. Dive and wildlife tourism operators gain access to newly protected, high-value sites.</p>
+</div>
+
+<h2>Regulatory Changes</h2>
+<table>
+<thead><tr><th>Impact Area</th><th>Current Status</th><th>After Designation</th></tr></thead>
+<tbody>
+<tr><td style="font-weight:600">Shipping Routes</td><td style="color:#276749">Unrestricted transit</td><td style="color:#975A16">1 route requires 12nm diversion around core zone</td></tr>
+<tr><td style="font-weight:600">Anchoring</td><td style="color:#276749">Permitted</td><td style="color:#C53030">Prohibited within core zone (seamount summits)</td></tr>
+<tr><td style="font-weight:600">Dive Tourism</td><td style="color:#276749">Unregulated</td><td style="color:#276749">Permitted with operator certification + daily permits</td></tr>
+<tr><td style="font-weight:600">Oil/Gas Exploration</td><td style="color:#276749">${state.siteId==='vtr'?'14 active blocks nearby':'No active blocks'}</td><td style="color:#975A16">${state.siteId==='vtr'?'3 blocks overlap with MPA buffer':'No change'}</td></tr>
+<tr><td style="font-weight:600">Construction/Infrastructure</td><td style="color:#276749">EIA required</td><td style="color:#C53030">Prohibited within core zone</td></tr>
+</tbody></table>
+
+<h2>Revenue & Opportunity Analysis</h2>
+<div class="mg">${capital.map(c=>`<div class="mc"><div class="mv">${c.v}</div><div class="ml">${c.m}</div><div class="mn">${c.n}</div></div>`).join('')}</div>
+
+<h2>3-Year Cost-Benefit Projection</h2>
+<table>
+<thead><tr><th></th><th>Year 1</th><th>Year 2</th><th>Year 3</th></tr></thead>
+<tbody>
+<tr><td style="font-weight:600">Compliance Costs</td><td style="color:#C53030">-$45K</td><td style="color:#C53030">-$20K</td><td style="color:#C53030">-$15K</td></tr>
+<tr><td style="font-weight:600">Route Diversion Cost</td><td style="color:#C53030">-$12K</td><td style="color:#C53030">-$12K</td><td style="color:#C53030">-$12K</td></tr>
+<tr><td style="font-weight:600">Eco-Cert Revenue Premium</td><td style="color:#276749">+$0</td><td style="color:#276749">+$180K</td><td style="color:#276749">+$320K</td></tr>
+<tr><td style="font-weight:600">New Dive Site Revenue</td><td style="color:#276749">+$90K</td><td style="color:#276749">+$210K</td><td style="color:#276749">+$280K</td></tr>
+<tr style="border-top:2px solid #2D3748"><td style="font-weight:700">Net Impact</td><td style="font-weight:700;color:#276749">+$33K</td><td style="font-weight:700;color:#276749">+$358K</td><td style="font-weight:700;color:#276749">+$573K</td></tr>
+</tbody></table>
+
+<h2>Eco-Certification Pathway</h2>
+<table>
+<thead><tr><th>Milestone</th><th>Timeline</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Environmental baseline assessment</td><td>Months 1\u20133</td><td style="color:#975A16">Pending \u2014 requires site survey</td></tr>
+<tr><td>Blue Flag application submission</td><td>Month 4</td><td style="color:#718096">After baseline</td></tr>
+<tr><td>Green Fins operator training</td><td>Months 3\u20136</td><td style="color:#718096">Available through ICMBio</td></tr>
+<tr><td>Certification awarded</td><td>Month 10\u201312</td><td style="color:#718096">Expected</td></tr>
+<tr><td>Premium pricing enabled</td><td>Month 12+</td><td style="color:#276749">+22\u201335% operator revenue</td></tr>
+</tbody></table>
+
+<h2>Sustainability Roadmap</h2>
+<p style="color:#4A5568">${enfText}</p>`;
+  }
+
+  // Map script
+  const mapScript = `<`+`script>
+document.addEventListener('DOMContentLoaded', function() {
+  try {
+    var map = L.map('map-report', {zoomControl:false}).setView([${s.lat}, ${s.lng}], ${s.zoom});
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {attribution:'CartoDB',maxZoom:18}).addTo(map);
+    var mpaColor = '${p.color}';
+    L.polygon(${JSON.stringify(s.mpaPolygon)}, {color:mpaColor,fillColor:mpaColor,fillOpacity:0.12,weight:1.5,dashArray:'6 4'}).addTo(map);
+    L.polygon(${JSON.stringify(s.existingMPA)}, {color:'#48BB78',fillColor:'#48BB78',fillOpacity:0.2,weight:1.5}).addTo(map);
+    ${JSON.stringify(s.seamounts)}.forEach(function(sm) {
+      L.circleMarker([sm.lat, sm.lng], {radius:5,color:'#2D7A74',fillColor:'#2D7A74',fillOpacity:0.7,weight:1}).addTo(map).bindPopup('<b>'+sm.name+'</b>');
+    });
+  } catch(e) { document.getElementById('map-report').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#A0AEC0;font-family:monospace;font-size:11px">Map requires internet connection</div>'; }
+});
+<`+`/script>`;
+
+  return `<!DOCTYPE html><html><head><title>OSA Report \u2014 ${s.name} \u2014 ${p.label}</title>
+<style>${css}</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<`+`script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><`+`/script>
+</head><body>
+<div class="print-bar no-print">
+  <button class="btn-print" onclick="window.print()">PRINT / SAVE PDF</button>
+  <button class="btn-close" onclick="window.close()">CLOSE</button>
+</div>
+${page1}
+
+<div class="page-break"></div>
+<div class="tag" style="margin-bottom:8px">OCEAN SENSITIVE AREAS REPORT \u2014 ${s.shortName.toUpperCase()} \u2014 ${p.label.toUpperCase()}</div>
+${personaPages}
+
+<div class="footer">
+  Ocean Sensitive Areas Report | ${p.label} Analysis | Agentic MSP Console v2<br>
+  Data: Ocean Data Platform (api.hubocean.earth) | Queried ${ODP_API.queryDate}<br>
+  FAIR-Compliant | H3 Resolution 7 | ODP STAC API<br>
+  Julian Ford Hill | HUB Ocean Foundation | March 2026
+</div>
+${mapScript}
+</body></html>`;
+}
+
+function downloadReport() {
+  const w = window.open('','_blank');
+  w.document.write(generateReportHTML());
+  w.document.close();
+}
+
+function downloadReport3() {
+  downloadReport();
+}
+
+function buildReport() {
+  const {p, s, capital, gap, t, enfText, layersForReport, totalDatasets} = getReportData();
+  const bbox = state.siteId==='vtr'?'[-40, -22, -28, -18]':'[-35, -5, -30, -2]';
+
+  const el = document.getElementById('report-inner');
+  el.innerHTML = `
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
+  <div><div style="font-family:monospace;font-size:10px;letter-spacing:0.15em;color:#4FD1C5;margin-bottom:6px">OCEAN SENSITIVE AREAS REPORT</div>
+  <h1>${s.name}</h1><p style="font-size:12px;color:#666;margin-top:4px">${p.label} Analysis | Agentic MSP Console v2 | ODP STAC API + H3</p></div>
+  <div style="text-align:right;font-family:monospace;font-size:10px;color:#999;line-height:1.6"><div>March 2026</div><div>Julian Ford Hill</div><div>HUB Ocean Foundation</div></div>
+</div>
+<hr style="border:none;border-top:2px solid #4FD1C5;margin-bottom:24px">
+<h2>1. ${t[0]}</h2>
+<table><tbody>
+${[['Site',s.name],['Bounding Box',bbox],['Key Features',s.seamounts.map(x=>x.name).join(', ')],['Total Area',s.area+' km\u00B2'],['Protection Impact',s.protBefore+' \u2192 '+s.protAfter]].map(r=>`<tr style="border-bottom:1px solid #eee"><td style="padding:5px 10px 5px 0;font-weight:600;color:#333;width:160px">${r[0]}</td><td style="padding:5px 0;color:#555">${r[1]}</td></tr>`).join('')}
+</tbody></table>
+<h2>2. ${t[1]}</h2>
+<div class="r-metric-grid">${capital.map(c=>`<div class="r-metric"><div class="r-metric-val">${c.v}</div><div class="r-metric-label">${c.m}</div><div class="r-metric-note">${c.n}</div></div>`).join('')}</div>
+<h2>3. ${t[2]}</h2>
+<p style="font-size:13px;line-height:1.7;color:#444;margin-bottom:16px">${enfText}</p>
+<h2>4. ODP Data Inventory (${totalDatasets} datasets)</h2>
+${layersForReport.map(layer => `
+<div style="margin-bottom:10px">
+  <div style="font-weight:600;font-size:12px;color:#333">${layer.label} <span style="font-weight:400;color:#999">(${layer.count})</span></div>
+  ${layer.datasets.map(d => `<div style="font-size:11px;color:#666;padding:2px 0 2px 12px">\u2192 ${d.title} <span style="color:#999">| ${d.provider}${d.rows?' | '+d.rows.toLocaleString()+' rows':''}</span></div>`).join('')}
+</div>`).join('')}
+<h2>5. Gap Analysis</h2>
+<div class="r-gap"><strong>Critical Gaps (${gap.keyGaps.length}):</strong><br>${gap.keyGaps.map(g => '\u2022 '+g).join('<br>')}</div>
+<div style="margin-top:10px"><strong>Priority Partners:</strong> ${gap.toOnboard.map(t => t.inst).join(', ')}</div>
+<div style="margin-top:28px;padding-top:12px;border-top:1px solid #ddd;font-family:monospace;font-size:9px;color:#bbb;text-align:center">Generated by Agentic MSP Console v2 | ODP STAC API | FAIR-Compliant | H3 Resolution 7 | ${ODP_API.queryDate}</div>`;
+}
+
+/* ═══════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════ */
+initPersonaGrid();
+</script>
+</body>
+</html>
